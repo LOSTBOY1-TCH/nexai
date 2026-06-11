@@ -9,7 +9,7 @@ const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const { pool, initializeDatabase } = require('./db');
+const { connectDatabase, initializeDatabase, User, Session, OtpCode, PasswordReset, Settings, ChatHistory } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -99,52 +99,47 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Passwords do not match' });
         }
 
-        const connection = await pool.getConnection();
-        try {
-            // Check if user exists
-            const [existingUser] = await connection.execute(
-                'SELECT id FROM users WHERE email = ? OR username = ?',
-                [email, username]
-            );
-
-            if (existingUser.length > 0) {
-                return res.status(400).json({ success: false, message: 'Email or username already exists' });
-            }
-
-            // Hash password
-            const hashedPassword = await bcryptjs.hash(password, 10);
-
-            // Create user
-            await connection.execute(
-                'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-                [username, email, hashedPassword]
-            );
-
-            // Generate OTP
-            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-            const expiresAt = new Date(Date.now() + 10 * 60000);
-
-            await connection.execute(
-                'INSERT INTO otp_codes (email, code, expires_at) VALUES (?, ?, ?)',
-                [email, otpCode, expiresAt]
-            );
-
-            // Send OTP email
-            try {
-                await transporter.sendMail({
-                    from: process.env.EMAIL_FROM,
-                    to: email,
-                    subject: 'NEXAI - Email Verification',
-                    html: `<h2>Welcome to NEXAI!</h2><p>Your verification code is: <strong>${otpCode}</strong></p><p>This code expires in 10 minutes.</p>`
-                });
-            } catch (emailError) {
-                console.log('Email not configured, but user registered. OTP:', otpCode);
-            }
-
-            res.json({ success: true, message: 'Registration successful. Check your email for verification code.' });
-        } finally {
-            connection.release();
+        // Check if user exists
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Email or username already exists' });
         }
+
+        // Hash password
+        const hashedPassword = await bcryptjs.hash(password, 10);
+
+        // Create user
+        const newUser = new User({
+            username,
+            email,
+            password: hashedPassword
+        });
+        await newUser.save();
+
+        // Generate OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60000);
+
+        const otp = new OtpCode({
+            email,
+            code: otpCode,
+            expiresAt
+        });
+        await otp.save();
+
+        // Send OTP email
+        try {
+            await transporter.sendMail({
+                from: process.env.EMAIL_FROM,
+                to: email,
+                subject: 'NEXAI - Email Verification',
+                html: `<h2>Welcome to NEXAI!</h2><p>Your verification code is: <strong>${otpCode}</strong></p><p>This code expires in 10 minutes.</p>`
+            });
+        } catch (emailError) {
+            console.log('Email not configured, but user registered. OTP:', otpCode);
+        }
+
+        res.json({ success: true, message: 'Registration successful. Check your email for verification code.' });
     } catch (error) {
         console.error('Register error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -160,50 +155,58 @@ app.post('/api/auth/verify-otp', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email and code required' });
         }
 
-        const connection = await pool.getConnection();
-        try {
-            const [otpRecords] = await connection.execute(
-                'SELECT * FROM otp_codes WHERE email = ? AND code = ? AND used = FALSE ORDER BY created_at DESC LIMIT 1',
-                [email, code]
-            );
+        const otpRecord = await OtpCode.findOne({
+            email,
+            code,
+            used: false
+        }).sort({ createdAt: -1 });
 
-            if (otpRecords.length === 0) {
-                return res.status(400).json({ success: false, message: 'Invalid OTP' });
-            }
-
-            const otp = otpRecords[0];
-            if (new Date() > otp.expires_at) {
-                return res.status(400).json({ success: false, message: 'OTP expired' });
-            }
-
-            // Mark OTP as used
-            await connection.execute('UPDATE otp_codes SET used = TRUE WHERE id = ?', [otp.id]);
-
-            // Get user
-            const [users] = await connection.execute('SELECT id FROM users WHERE email = ?', [email]);
-
-            if (users.length === 0) {
-                return res.status(400).json({ success: false, message: 'User not found' });
-            }
-
-            // Generate JWT
-            const token = jwt.sign(
-                { id: users[0].id, email },
-                process.env.JWT_SECRET,
-                { expiresIn: process.env.JWT_EXPIRY || '7d' }
-            );
-
-            // Create session
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-            await connection.execute(
-                'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)',
-                [users[0].id, token, expiresAt]
-            );
-
-            res.json({ success: true, token, userId: users[0].id });
-        } finally {
-            connection.release();
+        if (!otpRecord) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP' });
         }
+
+        if (new Date() > otpRecord.expiresAt) {
+            return res.status(400).json({ success: false, message: 'OTP expired' });
+        }
+
+        // Mark OTP as used
+        otpRecord.used = true;
+        await otpRecord.save();
+
+        // Get user
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'User not found' });
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            { id: user._id.toString(), email },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRY || '7d' }
+        );
+
+        // Create session
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const session = new Session({
+            userId: user._id,
+            token,
+            expiresAt
+        });
+        await session.save();
+
+        // Create default settings
+        const existingSettings = await Settings.findOne({ userId: user._id });
+        if (!existingSettings) {
+            const defaultSettings = new Settings({
+                userId: user._id,
+                theme: 'dark',
+                accentColor: 'ff1744'
+            });
+            await defaultSettings.save();
+        }
+
+        res.json({ success: true, token, userId: user._id.toString() });
     } catch (error) {
         console.error('OTP verification error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -219,46 +222,40 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email and password required' });
         }
 
-        const connection = await pool.getConnection();
-        try {
-            const [users] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
-
-            if (users.length === 0) {
-                return res.status(400).json({ success: false, message: 'User not found' });
-            }
-
-            const user = users[0];
-            const isPasswordCorrect = await bcryptjs.compare(password, user.password);
-
-            if (!isPasswordCorrect) {
-                return res.status(400).json({ success: false, message: 'Invalid password' });
-            }
-
-            // Generate JWT
-            const token = jwt.sign(
-                { id: user.id, email: user.email },
-                process.env.JWT_SECRET,
-                { expiresIn: process.env.JWT_EXPIRY || '7d' }
-            );
-
-            // Create session
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-            await connection.execute(
-                'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)',
-                [user.id, token, expiresAt]
-            );
-
-            res.json({
-                success: true,
-                token,
-                userId: user.id,
-                username: user.username,
-                email: user.email,
-                avatar: user.avatar
-            });
-        } finally {
-            connection.release();
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'User not found' });
         }
+
+        const isPasswordCorrect = await bcryptjs.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ success: false, message: 'Invalid password' });
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            { id: user._id.toString(), email: user.email },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRY || '7d' }
+        );
+
+        // Create session
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const session = new Session({
+            userId: user._id,
+            token,
+            expiresAt
+        });
+        await session.save();
+
+        res.json({
+            success: true,
+            token,
+            userId: user._id.toString(),
+            username: user.username,
+            email: user.email,
+            avatar: user.avatar
+        });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -272,21 +269,11 @@ app.post('/api/auth/login', async (req, res) => {
 // Get user profile
 app.get('/api/user/profile', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            const [users] = await connection.execute(
-                'SELECT id, username, email, avatar, created_at FROM users WHERE id = ?',
-                [req.userId]
-            );
-
-            if (users.length === 0) {
-                return res.status(404).json({ success: false, message: 'User not found' });
-            }
-
-            res.json({ success: true, user: users[0] });
-        } finally {
-            connection.release();
+        const user = await User.findById(req.userId).select('id username email avatar createdAt');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
         }
+        res.json({ success: true, user });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -300,13 +287,8 @@ app.post('/api/user/avatar', verifyToken, upload.single('avatar'), async (req, r
         }
 
         const avatarPath = `/uploads/${req.file.filename}`;
-        const connection = await pool.getConnection();
-        try {
-            await connection.execute('UPDATE users SET avatar = ? WHERE id = ?', [avatarPath, req.userId]);
-            res.json({ success: true, avatar: avatarPath });
-        } finally {
-            connection.release();
-        }
+        await User.findByIdAndUpdate(req.userId, { avatar: avatarPath });
+        res.json({ success: true, avatar: avatarPath });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -315,22 +297,16 @@ app.post('/api/user/avatar', verifyToken, upload.single('avatar'), async (req, r
 // Delete avatar
 app.delete('/api/user/avatar', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            const [users] = await connection.execute('SELECT avatar FROM users WHERE id = ?', [req.userId]);
-
-            if (users.length > 0 && users[0].avatar) {
-                const filePath = path.join(__dirname, 'public', users[0].avatar);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
+        const user = await User.findById(req.userId);
+        if (user && user.avatar) {
+            const filePath = path.join(__dirname, 'public', user.avatar);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
             }
-
-            await connection.execute('UPDATE users SET avatar = NULL WHERE id = ?', [req.userId]);
-            res.json({ success: true });
-        } finally {
-            connection.release();
         }
+
+        await User.findByIdAndUpdate(req.userId, { avatar: null });
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -343,26 +319,18 @@ app.delete('/api/user/avatar', verifyToken, async (req, res) => {
 // Get settings
 app.get('/api/settings', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            const [settings] = await connection.execute(
-                'SELECT * FROM settings WHERE user_id = ?',
-                [req.userId]
-            );
+        let settings = await Settings.findOne({ userId: req.userId });
 
-            if (settings.length === 0) {
-                // Create default settings
-                await connection.execute(
-                    'INSERT INTO settings (user_id, theme) VALUES (?, ?)',
-                    [req.userId, 'dark']
-                );
-                return res.json({ success: true, settings: { theme: 'dark', accent_color: 'ff1744' } });
-            }
-
-            res.json({ success: true, settings: settings[0] });
-        } finally {
-            connection.release();
+        if (!settings) {
+            settings = new Settings({
+                userId: req.userId,
+                theme: 'dark',
+                accentColor: 'ff1744'
+            });
+            await settings.save();
         }
+
+        res.json({ success: true, settings });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -371,17 +339,23 @@ app.get('/api/settings', verifyToken, async (req, res) => {
 // Update settings
 app.put('/api/settings', verifyToken, async (req, res) => {
     try {
-        const { theme, accent_color, voice_speed, voice_pitch, voice_enabled, notifications } = req.body;
-        const connection = await pool.getConnection();
-        try {
-            await connection.execute(
-                'UPDATE settings SET theme = ?, accent_color = ?, voice_speed = ?, voice_pitch = ?, voice_enabled = ?, notifications = ? WHERE user_id = ?',
-                [theme || 'dark', accent_color || 'ff1744', voice_speed || 1.0, voice_pitch || 1.0, voice_enabled !== false, notifications !== false, req.userId]
-            );
-            res.json({ success: true });
-        } finally {
-            connection.release();
+        const { theme, accentColor, voiceSpeed, voicePitch, voiceEnabled, notifications } = req.body;
+
+        let settings = await Settings.findOne({ userId: req.userId });
+        if (!settings) {
+            settings = new Settings({ userId: req.userId });
         }
+
+        settings.theme = theme || 'dark';
+        settings.accentColor = accentColor || 'ff1744';
+        settings.voiceSpeed = voiceSpeed || 1.0;
+        settings.voicePitch = voicePitch || 1.0;
+        settings.voiceEnabled = voiceEnabled !== false;
+        settings.notifications = notifications !== false;
+        settings.updatedAt = new Date();
+
+        await settings.save();
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -394,16 +368,10 @@ app.put('/api/settings', verifyToken, async (req, res) => {
 // Get all chats
 app.get('/api/chats', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            const [chats] = await connection.execute(
-                'SELECT id, chat_id, chat_title, created_at, updated_at FROM chat_history WHERE user_id = ? ORDER BY updated_at DESC',
-                [req.userId]
-            );
-            res.json({ success: true, chats });
-        } finally {
-            connection.release();
-        }
+        const chats = await ChatHistory.find({ userId: req.userId })
+            .select('chatId chatTitle createdAt updatedAt')
+            .sort({ updatedAt: -1 });
+        res.json({ success: true, chats });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -412,30 +380,24 @@ app.get('/api/chats', verifyToken, async (req, res) => {
 // Get chat by ID
 app.get('/api/chats/:chatId', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            const [chats] = await connection.execute(
-                'SELECT * FROM chat_history WHERE user_id = ? AND chat_id = ?',
-                [req.userId, req.params.chatId]
-            );
+        const chat = await ChatHistory.findOne({
+            userId: req.userId,
+            chatId: req.params.chatId
+        });
 
-            if (chats.length === 0) {
-                return res.status(404).json({ success: false, message: 'Chat not found' });
-            }
-
-            const chat = chats[0];
-            res.json({
-                success: true,
-                chat: {
-                    id: chat.chat_id,
-                    title: chat.chat_title,
-                    messages: JSON.parse(chat.messages || '[]'),
-                    created_at: chat.created_at
-                }
-            });
-        } finally {
-            connection.release();
+        if (!chat) {
+            return res.status(404).json({ success: false, message: 'Chat not found' });
         }
+
+        res.json({
+            success: true,
+            chat: {
+                id: chat.chatId,
+                title: chat.chatTitle,
+                messages: chat.messages || [],
+                created_at: chat.createdAt
+            }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -450,29 +412,27 @@ app.post('/api/chats', verifyToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid data' });
         }
 
-        const connection = await pool.getConnection();
-        try {
-            const [existingChat] = await connection.execute(
-                'SELECT id FROM chat_history WHERE user_id = ? AND chat_id = ?',
-                [req.userId, chatId]
-            );
+        let chat = await ChatHistory.findOne({
+            userId: req.userId,
+            chatId
+        });
 
-            if (existingChat.length > 0) {
-                await connection.execute(
-                    'UPDATE chat_history SET messages = ?, chat_title = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND chat_id = ?',
-                    [JSON.stringify(messages), chatTitle, req.userId, chatId]
-                );
-            } else {
-                await connection.execute(
-                    'INSERT INTO chat_history (user_id, chat_id, chat_title, messages) VALUES (?, ?, ?, ?)',
-                    [req.userId, chatId, chatTitle, JSON.stringify(messages)]
-                );
-            }
-
-            res.json({ success: true });
-        } finally {
-            connection.release();
+        if (chat) {
+            chat.messages = messages;
+            chat.chatTitle = chatTitle;
+            chat.updatedAt = new Date();
+            await chat.save();
+        } else {
+            chat = new ChatHistory({
+                userId: req.userId,
+                chatId,
+                chatTitle,
+                messages
+            });
+            await chat.save();
         }
+
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -481,16 +441,11 @@ app.post('/api/chats', verifyToken, async (req, res) => {
 // Delete chat
 app.delete('/api/chats/:chatId', verifyToken, async (req, res) => {
     try {
-        const connection = await pool.getConnection();
-        try {
-            await connection.execute(
-                'DELETE FROM chat_history WHERE user_id = ? AND chat_id = ?',
-                [req.userId, req.params.chatId]
-            );
-            res.json({ success: true });
-        } finally {
-            connection.release();
-        }
+        await ChatHistory.deleteOne({
+            userId: req.userId,
+            chatId: req.params.chatId
+        });
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -598,15 +553,24 @@ app.get('/', (req, res) => {
 });
 
 // ===========================
-// Start Server
+// Initialize and Start Server
 // ===========================
 
 async function startServer() {
     try {
+        await connectDatabase();
         await initializeDatabase();
+
         app.listen(PORT, () => {
-            console.log(`\n✓ NEXAI Server running on port ${PORT}`);
-            console.log(`✓ Open http://localhost:${PORT} in your browser\n`);
+            console.log(`
+╔════════════════════════════════════════╗
+║       NEXAI Server Started              ║
+║     MongoDB Connected Successfully      ║
+╚════════════════════════════════════════╝
+            
+Server running on: http://localhost:${PORT}
+Environment: ${process.env.NODE_ENV || 'development'}
+            `);
         });
     } catch (error) {
         console.error('Failed to start server:', error);
@@ -615,3 +579,5 @@ async function startServer() {
 }
 
 startServer();
+
+module.exports = app;
