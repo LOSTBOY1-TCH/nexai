@@ -3,34 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEXAI - AI Assistant</title>
+    <title>NEXAI Assistant - Premium AI Chat</title>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <!-- SIDEBAR -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
+            <!-- Sidebar Header -->
             <div class="sidebar-header">
-                <button class="sidebar-toggle" id="sidebarToggle">
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <div class="logo">
-                    <span class="logo-icon">⚡</span>
+                    <i class="fas fa-brain logo-icon"></i>
                     <span class="logo-text">NEXAI</span>
                 </div>
             </div>
 
-            <button class="new-chat-btn" id="newChatBtn">
-                <span class="icon">+</span>
-                New Chat
+            <!-- New Chat Button -->
+            <button class="new-chat-btn" id="newChatBtn" title="Start a new conversation">
+                <i class="fas fa-plus"></i>
+                <span>New Chat</span>
             </button>
 
+            <!-- Search Bar -->
+            <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="chat-search" 
+                    placeholder="Search chats..."
+                    aria-label="Search conversations"
+                >
+            </div>
+
+            <!-- Chat List -->
             <div class="chat-list" id="chatList">
                 <!-- Chat items will be dynamically inserted here -->
             </div>
 
+            <!-- Sidebar Footer -->
             <div class="sidebar-footer">
                 <div class="creator-info">
                     <p class="creator-label">Built by</p>
@@ -41,19 +62,24 @@
 
         <!-- MAIN CHAT AREA -->
         <main class="chat-container">
-            <!-- HEADER -->
+            <!-- Header -->
             <header class="chat-header">
                 <div class="header-content">
-                    <h1 class="chat-title">NEXAI Assistant</h1>
-                    <p class="header-subtitle">Powered by Advanced AI</p>
+                    <h1 class="chat-title">
+                        <i class="fas fa-robot"></i>
+                        NEXAI Assistant
+                    </h1>
+                    <p class="header-subtitle">Powered by Lostboy Tech</p>
                 </div>
             </header>
 
-            <!-- MESSAGES AREA -->
-            <div class="messages-wrapper">
+            <!-- Messages Area -->
+            <div class="messages-wrapper" id="messagesWrapper">
                 <div class="messages" id="messages">
                     <!-- Messages will be inserted here -->
                 </div>
+                
+                <!-- Loading Indicator -->
                 <div class="loading-indicator hidden" id="loadingIndicator">
                     <div class="loader">
                         <div class="dot"></div>
@@ -64,39 +90,76 @@
                 </div>
             </div>
 
-            <!-- INPUT AREA -->
+            <!-- Input Area -->
             <div class="input-area">
                 <div class="input-wrapper">
+                    <!-- File Upload -->
                     <input
                         type="file"
                         id="fileInput"
-                        accept=".txt"
+                        accept=".txt,.pdf,.json"
                         class="file-input hidden"
+                        aria-label="Upload file"
                     />
-                    <button class="input-btn file-btn" id="fileBtn" title="Upload .txt file">
-                        <span>📎</span>
+                    <button class="input-btn file-btn" id="fileBtn" title="Upload a file">
+                        <i class="fas fa-paperclip"></i>
                     </button>
 
+                    <!-- Message Input -->
                     <input
                         type="text"
                         id="messageInput"
                         placeholder="Ask me anything... (Ctrl+Enter to send)"
                         class="message-input"
                         autocomplete="off"
+                        aria-label="Message input"
                     />
 
-                    <button class="input-btn send-btn" id="sendBtn" title="Send message">
-                        <span>➤</span>
+                    <!-- Voice Input -->
+                    <button class="input-btn voice-btn" id="voiceBtn" title="Voice input (Web Speech API)">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+
+                    <!-- Send Button -->
+                    <button class="input-btn send-btn" id="sendBtn" title="Send message (Ctrl+Enter)">
+                        <i class="fas fa-paper-plane"></i>
                     </button>
                 </div>
-                <p class="input-hint">LOSTBOY TECH. ALL RIGHTS RESERVED</p>
+                <p class="input-hint">Built by Lostboy Tech © 2026 • All Rights Reserved</p>
             </div>
         </main>
     </div>
 
-    <!-- OVERLAY FOR MOBILE -->
+    <!-- Sidebar Overlay for Mobile -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
+    <!-- Chat Actions Modal -->
+    <div class="modal hidden" id="chatActionsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Chat Options</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Options will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Memory Info Modal -->
+    <div class="modal hidden" id="memoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>My Memory</h3>
+                <button class="modal-close" id="memoryModalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="memoryContent">
+                <!-- Memory content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="script.js"></script>
 </body>
 </html>
