@@ -548,20 +548,26 @@ body {
     color: white;
 }
 
-.message-content a {
+.message-content a,
+.message-content .message-link {
     color: var(--primary-color);
     text-decoration: none;
-    border-bottom: 1px solid var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
     transition: var(--transition-fast);
+    cursor: pointer;
+    font-weight: 500;
 }
 
-.message.user .message-content a {
+.message.user .message-content a,
+.message.user .message-content .message-link {
     color: white;
     border-bottom-color: white;
 }
 
-.message-content a:hover {
-    opacity: 0.8;
+.message-content a:hover,
+.message-content .message-link:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
 }
 
 .message-content code {
@@ -576,6 +582,32 @@ body {
 .message.user .message-content code {
     background: rgba(255, 255, 255, 0.2);
     color: white;
+}
+
+/* Stop Button for Streaming */
+
+.stop-btn {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #ff1744, #c20030);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(255, 23, 68, 0.3);
+}
+
+.stop-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 23, 68, 0.5);
+}
+
+.stop-btn:active {
+    transform: translateY(0);
 }
 
 /* Loading Indicator */
