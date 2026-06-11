@@ -113,6 +113,30 @@ class NEXAI {
         this.elements.newChatBtn.addEventListener('click', () => this.createNewChat());
         this.elements.fileBtn.addEventListener('click', () => this.elements.fileInput.click());
         this.elements.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
+        
+        // Drag and drop upload to messages area
+        this.elements.messagesWrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.elements.messagesWrapper.classList.add('drag-over');
+        });
+        
+        this.elements.messagesWrapper.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.elements.messagesWrapper.classList.remove('drag-over');
+        });
+        
+        this.elements.messagesWrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.elements.messagesWrapper.classList.remove('drag-over');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const event = { target: { files: [e.dataTransfer.files[0]] } };
+                this.handleFileUpload(event);
+            }
+        });
 
         // Voice input
         this.elements.voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
@@ -144,7 +168,7 @@ class NEXAI {
     // ===========================
 
     createNewChat() {
-        const chatId = `chat_${Date.now()}`;
+        const chatId = 'chat_' + Date.now();
         const newChat = {
             id: chatId,
             title: 'New Chat',
@@ -154,16 +178,36 @@ class NEXAI {
         };
 
         this.chats.push(newChat);
-        this.chatIndex.unshift({
+        this.chatIndex.push({
             id: chatId,
             title: 'New Chat',
-            createdAt: new Date().toISOString()
+            createdAt: newChat.createdAt
         });
 
+        this.currentChatId = chatId;
         this.saveAllData();
-        this.setActiveChat(chatId);
         this.renderChatList();
+        this.renderMessages();
+        this.showAIDisclaimer();
         this.focusInput();
+    }
+
+    showAIDisclaimer() {
+        // Show disclaimer about AI capabilities only once per chat
+        if (this.elements.messagesContainer.children.length === 0) {
+            const disclaimerEl = document.createElement('div');
+            disclaimerEl.className = 'ai-disclaimer';
+            disclaimerEl.innerHTML = `
+                <div class="disclaimer-content">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>⚠️ NEXAI AI Disclaimer</strong>
+                        <p>NEXAI can make mistakes, just like ChatGPT. It may produce inaccurate information, harmful instructions, or biased content. Always verify important information and use critical thinking. For sensitive topics, consult appropriate professionals.</p>
+                    </div>
+                </div>
+            `;
+            this.elements.messagesContainer.appendChild(disclaimerEl);
+        }
     }
 
     setActiveChat(chatId) {
@@ -683,7 +727,15 @@ class NEXAI {
         this.isLoading = true;
         this.stopStreaming = false;
         this.elements.loadingIndicator.classList.remove('hidden');
-        this.elements.sendBtn.disabled = true;
+        
+        // Change send button to stop button
+        this.elements.sendBtn.disabled = false;
+        this.elements.sendBtn.innerHTML = '<i class="fas fa-stop-circle"></i> Stop';
+        this.elements.sendBtn.classList.add('stop-mode');
+        this.elements.sendBtn.onclick = (e) => {
+            e.preventDefault();
+            this.stopStreaming = true;
+        };
 
         const userMessage = {
             role: 'user',
@@ -711,7 +763,8 @@ class NEXAI {
             // Include file context if available
             let messageForAI = message;
             if (this.currentFileContext) {
-                messageForAI = `${this.currentFileContext}\n\nUser request: ${message}`;
+                const { fileName, fileSize, content } = this.currentFileContext;
+                messageForAI = `[File: ${fileName} (${fileSize})]\n\n${content}\n\n[End of file]\n\nUser request: ${message || 'Please analyze this file.'}`;
                 this.currentFileContext = null; // Clear after use
             }
 
@@ -725,7 +778,7 @@ class NEXAI {
 
             currentChat.messages.push(aiMessage);
             
-            // Create message element with stop button
+            // Create message element without stop button (stop is in send button)
             const messageEl = document.createElement('div');
             messageEl.className = 'message assistant';
             messageEl.setAttribute('data-role', 'assistant');
@@ -738,23 +791,12 @@ class NEXAI {
             contentEl.className = 'message-content';
             contentEl.id = `msg-${Date.now()}`;
 
-            const stopBtn = document.createElement('button');
-            stopBtn.className = 'stop-btn';
-            stopBtn.innerHTML = '⏹ Stop';
-            stopBtn.onclick = () => {
-                this.stopStreaming = true;
-                stopBtn.style.display = 'none';
-            };
-
             messageEl.appendChild(avatar);
             messageEl.appendChild(contentEl);
-            messageEl.appendChild(stopBtn);
             this.elements.messagesContainer.appendChild(messageEl);
 
             // Stream response letter by letter
             await this.streamResponse(response, contentEl, aiMessage);
-
-            stopBtn.style.display = 'none';
 
             // Save final message
             this.saveAllData();
@@ -780,7 +822,16 @@ class NEXAI {
         } finally {
             this.isLoading = false;
             this.elements.loadingIndicator.classList.add('hidden');
+            
+            // Reset send button
             this.elements.sendBtn.disabled = false;
+            this.elements.sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            this.elements.sendBtn.classList.remove('stop-mode');
+            this.elements.sendBtn.onclick = (e) => {
+                e.preventDefault();
+                this.sendMessage();
+            };
+            
             this.focusInput();
         }
     }
@@ -1137,24 +1188,24 @@ class NEXAI {
                         type: file.type,
                         size: file.size,
                         uploadedAt: new Date().toISOString(),
-                        content: content.substring(0, 100000) // Limit content size
+                        content: content // Store full content
                     });
                     this.saveAllData();
                 }
                 
-                // Create a clean file context message for the AI
-                const fileContext = `[File: ${fileName} (${fileSize})]\n\nPlease analyze or help with this file:\n\n${content.substring(0, 5000)}${content.length > 5000 ? '\n...[file content truncated for display]' : ''}`;
+                // Store the full file content to be sent with the next message
+                this.currentFileContext = {
+                    fileName: fileName,
+                    fileSize: fileSize,
+                    content: content
+                };
                 
-                // Set message input with just a prompt
-                this.elements.messageInput.value = `Analyze this file: ${fileName}`;
-                this.elements.messageInput.placeholder = 'Ask about the uploaded file...';
+                // Set message input with helpful prompt
+                this.elements.messageInput.placeholder = `Ask about "${fileName}" or just send to analyze`;
+                this.elements.messageInput.focus();
                 
-                // Store the file content for this session (hidden from user)
-                this.currentFileContext = fileContext;
-                
-                // Show file upload notification
-                this.showNotification(`✅ File "${fileName}" (${fileSize}) ready to analyze!`);
-                this.focusInput();
+                // Show file upload notification with file info
+                this.showNotification(`✅ "${fileName}" (${fileSize}) ready! Ask me anything about it.`);
             } catch (error) {
                 this.showNotification(`❌ Error processing file: ${error.message}`);
             }
