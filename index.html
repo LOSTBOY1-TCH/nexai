@@ -2,8 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEXAI Assistant - Premium AI Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="NEXAI Assistant - Premium AI Chat with Memory System & File Upload. ChatGPT-style conversations with persistent memory and multi-format file support.">
+    <meta name="keywords" content="AI Chat, ChatGPT, AI Assistant, Conversation, Memory System, File Upload">
+    <meta name="author" content="Lostboy Tech">
+    <meta name="theme-color" content="#ff1744">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NEXAI">
+    
+    <!-- Open Graph Meta Tags (Social Sharing) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="NEXAI Assistant - AI Chat with Memory">
+    <meta property="og:description" content="Premium AI Chat powered by advanced language models. Save memories, upload files, and get personalized responses.">
+    <meta property="og:image" content="image.png">
+    <meta property="og:url" content="">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="NEXAI Assistant">
+    <meta name="twitter:description" content="AI Chat with Memory System & File Upload">
+    <meta name="twitter:image" content="image.png">
+    
+    <title>NEXAI Assistant - Premium AI Chat with Memory</title>
+    
+    <!-- Favicon & Web Icon -->
+    <link rel="icon" type="image/png" href="image.png" sizes="any">
+    <link rel="apple-touch-icon" href="image.png">
+    <link rel="shortcut icon" href="image.png">
     
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -71,6 +97,10 @@
                     </h1>
                     <p class="header-subtitle">Powered by Lostboy Tech</p>
                 </div>
+                <button class="header-memory-btn" id="headerMemoryBtn" title="View saved memories">
+                    <i class="fas fa-brain"></i>
+                    <span>Memories</span>
+                </button>
             </header>
 
             <!-- Messages Area -->
@@ -97,7 +127,7 @@
                     <input
                         type="file"
                         id="fileInput"
-                        accept=".txt,.pdf,.json"
+                        accept=".txt,.pdf,.json,.md,.csv,.log"
                         class="file-input hidden"
                         aria-label="Upload file"
                     />
