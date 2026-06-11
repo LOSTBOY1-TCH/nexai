@@ -50,6 +50,8 @@ class NEXAI {
         this.chatIndex = [];
         this.currentChatId = null;
         this.isLoading = false;
+        this.stopStreaming = false;
+        this.currentFileContext = null;
         this.userMemory = {};
         this.globalMemory = {};
         this.preferences = {
@@ -631,10 +633,14 @@ class NEXAI {
 
         let formatted = this.escapeHtml(text);
 
-        // URLs to links
+        // URLs to links - handles URLs wrapped in text like "https://www.name.com/?utm_source=nexai"
+        // This regex captures full URLs with query parameters
         formatted = formatted.replace(
-            /(\bhttps?:\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gi,
-            '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+            /(https?:\/\/(?:www\.)?[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gi,
+            (match) => {
+                // Create clickable link while keeping surrounding text
+                return `<a href="${match}" target="_blank" rel="noopener noreferrer" class="message-link">${match}</a>`;
+            }
         );
 
         // Bold
@@ -675,6 +681,7 @@ class NEXAI {
 
         this.elements.messageInput.value = '';
         this.isLoading = true;
+        this.stopStreaming = false;
         this.elements.loadingIndicator.classList.remove('hidden');
         this.elements.sendBtn.disabled = true;
 
@@ -701,28 +708,65 @@ class NEXAI {
         }
 
         try {
-            const response = await this.callAIAPI(message, currentChat.messages);
+            // Include file context if available
+            let messageForAI = message;
+            if (this.currentFileContext) {
+                messageForAI = `${this.currentFileContext}\n\nUser request: ${message}`;
+                this.currentFileContext = null; // Clear after use
+            }
+
+            const response = await this.callAIAPI(messageForAI, currentChat.messages);
+            
+            // Create AI message element for streaming
             const aiMessage = {
                 role: 'assistant',
-                content: response
+                content: ''
             };
 
             currentChat.messages.push(aiMessage);
-            currentChat.updatedAt = new Date().toISOString();
+            
+            // Create message element with stop button
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message assistant';
+            messageEl.setAttribute('data-role', 'assistant');
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar assistant';
+            avatar.innerHTML = '<i class="fas fa-robot"></i>';
+
+            const contentEl = document.createElement('div');
+            contentEl.className = 'message-content';
+            contentEl.id = `msg-${Date.now()}`;
+
+            const stopBtn = document.createElement('button');
+            stopBtn.className = 'stop-btn';
+            stopBtn.innerHTML = '⏹ Stop';
+            stopBtn.onclick = () => {
+                this.stopStreaming = true;
+                stopBtn.style.display = 'none';
+            };
+
+            messageEl.appendChild(avatar);
+            messageEl.appendChild(contentEl);
+            messageEl.appendChild(stopBtn);
+            this.elements.messagesContainer.appendChild(messageEl);
+
+            // Stream response letter by letter
+            await this.streamResponse(response, contentEl, aiMessage);
+
+            stopBtn.style.display = 'none';
+
+            // Save final message
             this.saveAllData();
 
-            this.elements.loadingIndicator.classList.add('hidden');
-            this.renderMessage(aiMessage);
-            this.scrollToBottom();
-
             // Check for memory commands
-            this.processMemoryCommands(message, response);
+            this.processMemoryCommands(message, aiMessage.content);
             
             // Also check AI response for "remember" mentions
-            this.detectAndSaveRemember(response);
+            this.detectAndSaveRemember(aiMessage.content);
+
         } catch (error) {
             console.error('Error:', error);
-            this.elements.loadingIndicator.classList.add('hidden');
 
             const errorMessage = {
                 role: 'assistant',
@@ -735,8 +779,29 @@ class NEXAI {
             this.scrollToBottom();
         } finally {
             this.isLoading = false;
+            this.elements.loadingIndicator.classList.add('hidden');
             this.elements.sendBtn.disabled = false;
             this.focusInput();
+        }
+    }
+
+    async streamResponse(text, contentEl, messageObj) {
+        let currentText = '';
+        const delay = 10; // milliseconds between characters
+
+        for (let i = 0; i < text.length; i++) {
+            if (this.stopStreaming) break;
+
+            currentText += text[i];
+            messageObj.content = currentText;
+
+            // Update display with formatted content
+            contentEl.innerHTML = this.formatMessage(currentText);
+
+            this.scrollToBottom();
+
+            // Add small delay for effect
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 
@@ -1046,12 +1111,11 @@ class NEXAI {
         const file = event.target.files[0];
         if (!file) return;
 
-        const validTypes = ['text/plain', 'application/json', 'application/pdf', 'text/markdown'];
         const validExtensions = ['.txt', '.json', '.pdf', '.md', '.csv', '.log'];
-        const isValidType = validTypes.includes(file.type) || validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+        const isValidFile = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
         
-        if (!isValidType) {
-            alert('Please upload a .txt, .json, .pdf, .md, .csv, or .log file');
+        if (!isValidFile) {
+            this.showNotification('Please upload a .txt, .json, .pdf, .md, .csv, or .log file');
             return;
         }
 
@@ -1059,7 +1123,8 @@ class NEXAI {
         reader.onload = (e) => {
             try {
                 const content = e.target.result;
-                const fileInfo = `[📎 File: ${file.name} (${this.formatFileSize(file.size)})]\n\n${content}`;
+                const fileName = file.name;
+                const fileSize = this.formatFileSize(file.size);
                 
                 // Store file in current chat for context
                 const currentChat = this.chats.find(c => c.id === this.currentChatId);
@@ -1068,21 +1133,27 @@ class NEXAI {
                         currentChat.uploadedFiles = [];
                     }
                     currentChat.uploadedFiles.push({
-                        name: file.name,
+                        name: fileName,
                         type: file.type,
                         size: file.size,
                         uploadedAt: new Date().toISOString(),
-                        content: content.substring(0, 50000) // Limit content size
+                        content: content.substring(0, 100000) // Limit content size
                     });
                     this.saveAllData();
                 }
                 
-                // Add to message input with file context
-                const messageWithFile = `[File: ${file.name}]\n\n${content.substring(0, 3000)}${content.length > 3000 ? '\n...[content truncated]' : ''}`;
-                this.elements.messageInput.value = messageWithFile;
+                // Create a clean file context message for the AI
+                const fileContext = `[File: ${fileName} (${fileSize})]\n\nPlease analyze or help with this file:\n\n${content.substring(0, 5000)}${content.length > 5000 ? '\n...[file content truncated for display]' : ''}`;
+                
+                // Set message input with just a prompt
+                this.elements.messageInput.value = `Analyze this file: ${fileName}`;
+                this.elements.messageInput.placeholder = 'Ask about the uploaded file...';
+                
+                // Store the file content for this session (hidden from user)
+                this.currentFileContext = fileContext;
                 
                 // Show file upload notification
-                this.showNotification(`✅ File "${file.name}" uploaded successfully!`);
+                this.showNotification(`✅ File "${fileName}" (${fileSize}) ready to analyze!`);
                 this.focusInput();
             } catch (error) {
                 this.showNotification(`❌ Error processing file: ${error.message}`);
