@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXAI - AI Assistant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="logo">
+                    <span class="logo-icon">⚡</span>
+                    <span class="logo-text">NEXAI</span>
+                </div>
+            </div>
+
+            <button class="new-chat-btn" id="newChatBtn">
+                <span class="icon">+</span>
+                New Chat
+            </button>
+
+            <div class="chat-list" id="chatList">
+                <!-- Chat items will be dynamically inserted here -->
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="creator-info">
+                    <p class="creator-label">Built by</p>
+                    <p class="creator-name">Lostboy Tech</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CHAT AREA -->
+        <main class="chat-container">
+            <!-- HEADER -->
+            <header class="chat-header">
+                <div class="header-content">
+                    <h1 class="chat-title">NEXAI Assistant</h1>
+                    <p class="header-subtitle">Powered by Advanced AI</p>
+                </div>
+            </header>
+
+            <!-- MESSAGES AREA -->
+            <div class="messages-wrapper">
+                <div class="messages" id="messages">
+                    <!-- Messages will be inserted here -->
+                </div>
+                <div class="loading-indicator hidden" id="loadingIndicator">
+                    <div class="loader">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    <span>NEXAI is thinking...</span>
+                </div>
+            </div>
+
+            <!-- INPUT AREA -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input
+                        type="file"
+                        id="fileInput"
+                        accept=".txt"
+                        class="file-input hidden"
+                    />
+                    <button class="input-btn file-btn" id="fileBtn" title="Upload .txt file">
+                        <span>📎</span>
+                    </button>
+
+                    <input
+                        type="text"
+                        id="messageInput"
+                        placeholder="Ask me anything... (Ctrl+Enter to send)"
+                        class="message-input"
+                        autocomplete="off"
+                    />
+
+                    <button class="input-btn send-btn" id="sendBtn" title="Send message">
+                        <span>➤</span>
+                    </button>
+                </div>
+                <p class="input-hint">LOSTBOY TECH. ALL RIGHTS RESERVED</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- OVERLAY FOR MOBILE -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
