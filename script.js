@@ -16,6 +16,7 @@ class NEXAI {
             CHATS: 'NEXAI_CHATS_v2',
             CHAT_INDEX: 'NEXAI_CHAT_INDEX_v2',
             MEMORY: 'NEXAI_MEMORY',
+            GLOBAL_MEMORY: 'NEXAI_GLOBAL_MEMORY',
             PREFERENCES: 'NEXAI_PREFERENCES',
             USER_PROFILE: 'NEXAI_USER_PROFILE'
         };
@@ -40,7 +41,8 @@ class NEXAI {
             chatActionsModal: document.getElementById('chatActionsModal'),
             modalClose: document.getElementById('modalClose'),
             memoryModal: document.getElementById('memoryModal'),
-            memoryModalClose: document.getElementById('memoryModalClose')
+            memoryModalClose: document.getElementById('memoryModalClose'),
+            headerMemoryBtn: document.getElementById('headerMemoryBtn')
         };
 
         // State
@@ -49,6 +51,7 @@ class NEXAI {
         this.currentChatId = null;
         this.isLoading = false;
         this.userMemory = {};
+        this.globalMemory = {};
         this.preferences = {
             theme: 'dark',
             notifications: true,
@@ -87,6 +90,7 @@ class NEXAI {
         this.loadChatsFromStorage();
         this.loadChatIndex();
         this.loadUserMemory();
+        this.loadGlobalMemory();
         this.loadPreferences();
     }
 
@@ -121,6 +125,9 @@ class NEXAI {
         // Modal close
         this.elements.modalClose.addEventListener('click', () => this.closeModal());
         this.elements.memoryModalClose.addEventListener('click', () => this.closeMemoryModal());
+
+        // Memory button
+        this.elements.headerMemoryBtn.addEventListener('click', () => this.showMemory());
 
         // Close sidebar on message send (mobile)
         this.elements.messageInput.addEventListener('keydown', () => {
@@ -377,24 +384,69 @@ class NEXAI {
 
     showMemory() {
         const memoryContent = document.getElementById('memoryContent');
-        const memoryEntries = Object.entries(this.userMemory);
+        const globalMemoryEntries = Object.entries(this.globalMemory);
+        const chatMemoryEntries = Object.entries(this.userMemory);
 
-        if (memoryEntries.length === 0) {
-            memoryContent.innerHTML = '<p class="memory-empty">No memories saved yet. Tell me something to remember!</p>';
+        if (globalMemoryEntries.length === 0 && chatMemoryEntries.length === 0) {
+            memoryContent.innerHTML = `
+                <div class="memory-empty">
+                    <i class="fas fa-brain"></i>
+                    <p>No memories saved yet.</p>
+                    <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;">
+                        Chat history is auto-saved! Use "remember" to save info across all chats.
+                    </p>
+                </div>
+            `;
         } else {
             let html = '<div class="memory-list">';
-            memoryEntries.forEach(([key, entry]) => {
-                html += `
-                    <div class="memory-item">
-                        <div class="memory-key">${this.escapeHtml(key)}</div>
-                        <div class="memory-value">${this.escapeHtml(entry.value)}</div>
-                        <button class="memory-delete" onclick="nexaiInstance.removeFromMemory('${key}'); nexaiInstance.showMemory();">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                `;
-            });
+
+            // Show global persistent memories first
+            if (globalMemoryEntries.length > 0) {
+                html += '<div class="memory-section"><h4 style="margin: 0 0 10px; color: var(--primary-color); font-size: 0.95em;">🌍 Persistent (All Chats)</h4>';
+                globalMemoryEntries.forEach(([key, entry]) => {
+                    const date = new Date(entry.addedAt);
+                    const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    html += `
+                        <div class="memory-item global-memory">
+                            <div class="memory-header">
+                                <span style="font-size: 0.9em; color: var(--primary-color); font-weight: 600;">💾</span>
+                                <button class="memory-delete" onclick="delete nexaiInstance.globalMemory['${this.escapeHtml(key)}']; nexaiInstance.saveGlobalMemory(); nexaiInstance.showMemory();" title="Delete memory">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            <div class="memory-value">${this.escapeHtml(entry.value)}</div>
+                            <div class="memory-date">${formattedDate}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            // Show chat memories
+            if (chatMemoryEntries.length > 0) {
+                html += '<div class="memory-section"><h4 style="margin: 10px 0 10px; color: var(--text-secondary); font-size: 0.95em;">📝 Chat History</h4>';
+                chatMemoryEntries.forEach(([key, entry]) => {
+                    const date = new Date(entry.addedAt);
+                    const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const badge = entry.type === 'chat_history' ? '📜' : '📌';
+                    html += `
+                        <div class="memory-item">
+                            <div class="memory-header">
+                                <span style="font-size: 0.9em;">${badge}</span>
+                                <button class="memory-delete" onclick="nexaiInstance.removeFromMemory('${this.escapeHtml(key)}'); nexaiInstance.showMemory();" title="Delete memory">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            <div class="memory-value">${this.escapeHtml(entry.value)}</div>
+                            <div class="memory-date">${formattedDate}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
             html += '</div>';
+            html += `<div class="memory-info"><small>💾 Persistent: ${globalMemoryEntries.length} | 📝 Chat: ${chatMemoryEntries.length}</small></div>`;
             memoryContent.innerHTML = html;
         }
 
@@ -463,6 +515,32 @@ class NEXAI {
             console.error('Error loading user memory:', error);
             this.userMemory = {};
         }
+    }
+
+    loadGlobalMemory() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEYS.GLOBAL_MEMORY);
+            this.globalMemory = stored ? JSON.parse(stored) : {};
+        } catch (error) {
+            console.error('Error loading global memory:', error);
+            this.globalMemory = {};
+        }
+    }
+
+    saveGlobalMemory() {
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.GLOBAL_MEMORY, JSON.stringify(this.globalMemory));
+        } catch (error) {
+            console.error('Error saving global memory:', error);
+        }
+    }
+
+    addToGlobalMemory(key, value) {
+        this.globalMemory[key] = {
+            value: value,
+            addedAt: new Date().toISOString()
+        };
+        this.saveGlobalMemory();
     }
 
     savePreferences() {
@@ -611,6 +689,12 @@ class NEXAI {
         this.renderMessage(userMessage);
         this.scrollToBottom();
 
+        // Auto-save chat history to memory for context
+        this.autoSaveChatMemory(currentChat);
+
+        // Check for "remember" keywords and save to global memory
+        this.detectAndSaveRemember(message);
+
         // Auto-generate title on first message
         if (currentChat.messages.length === 1) {
             await this.generateChatTitle(this.currentChatId, message);
@@ -633,6 +717,9 @@ class NEXAI {
 
             // Check for memory commands
             this.processMemoryCommands(message, response);
+            
+            // Also check AI response for "remember" mentions
+            this.detectAndSaveRemember(response);
         } catch (error) {
             console.error('Error:', error);
             this.elements.loadingIndicator.classList.add('hidden');
@@ -679,21 +766,116 @@ class NEXAI {
     processMemoryCommands(userMessage, aiResponse) {
         const lower = userMessage.toLowerCase();
 
-        if (lower.includes('remember') || lower.includes('remember that')) {
-            // Extract what to remember
-            const match = userMessage.match(/remember\s+(?:that\s+)?(.+)/i);
-            if (match) {
-                const memoryKey = `Memory_${Date.now()}`;
-                this.addToMemory(memoryKey, match[1]);
+        // Pattern: "remember that..." or "please remember..."
+        if (lower.includes('remember') && !lower.includes('forget')) {
+            const match = userMessage.match(/(?:remember|recall|memorize|note|remember that)\s+(?:I\s+)?(?:am\s+|that\s+|my\s+|you\s+)?(.+?)(?:\.|$|!|\?)/i);
+            if (match && match[1].length > 2) {
+                const value = match[1].trim();
+                const key = this.generateMemoryKey(value);
+                this.addToMemory(key, value);
+                this.showNotification(`✅ Memory saved: "${value.substring(0, 30)}..."`);
             }
         }
 
-        if (lower.includes('forget') || lower.includes('forget about')) {
-            // Handle forget command
+        // Pattern: "forget" or "delete memory"
+        if (lower.includes('forget') || lower.includes('clear memory') || lower.includes('delete memory')) {
+            const match = userMessage.match(/forget\s+(?:about\s+)?(.+?)(?:\.|$|!|\?)/i);
             const keys = Object.keys(this.userMemory);
-            if (keys.length > 0) {
-                this.removeFromMemory(keys[0]);
+            
+            if (match && match[1]) {
+                // Try to find and delete specific memory
+                const searchTerm = match[1].toLowerCase();
+                const keyToDelete = keys.find(k => 
+                    this.userMemory[k].value.toLowerCase().includes(searchTerm) ||
+                    k.toLowerCase().includes(searchTerm)
+                );
+                if (keyToDelete) {
+                    this.removeFromMemory(keyToDelete);
+                    this.showNotification(`🗑️ Memory deleted`);
+                }
+            } else if (keys.length > 0) {
+                // Delete most recent memory
+                const mostRecentKey = keys.reduce((a, b) => 
+                    new Date(this.userMemory[a].addedAt) > new Date(this.userMemory[b].addedAt) ? a : b
+                );
+                this.removeFromMemory(mostRecentKey);
+                this.showNotification(`🗑️ Memory deleted`);
             }
+        }
+
+        // Pattern: "show memories" or "what do you remember"
+        if (lower.includes('show') && lower.includes('memor') || lower.includes('what do you remember')) {
+            this.showMemory();
+        }
+    }
+
+    generateMemoryKey(value) {
+        // Generate a smart key from the value
+        const words = value.split(/\s+/).slice(0, 3).join('_').substring(0, 20);
+        const timestamp = Date.now().toString().slice(-4);
+        return `${words}_${timestamp}`;
+    }
+
+    autoSaveChatMemory(chat) {
+        // Auto-save chat history summary to memory for context across chats
+        if (!chat || chat.messages.length === 0) return;
+
+        // Save last 3 messages as context
+        const recentMessages = chat.messages.slice(-3);
+        const summary = recentMessages.map(m => `${m.role}: ${m.content.substring(0, 50)}`).join(' | ');
+        
+        if (summary.length > 0) {
+            const key = `chat_${chat.id.substring(0, 8)}_${Date.now().toString().slice(-4)}`;
+            this.userMemory[key] = {
+                value: summary,
+                addedAt: new Date().toISOString(),
+                type: 'chat_history'
+            };
+            
+            // Keep only last 20 chat memories
+            const chatMemories = Object.entries(this.userMemory)
+                .filter(([, v]) => v.type === 'chat_history')
+                .sort((a, b) => new Date(b[1].addedAt) - new Date(a[1].addedAt));
+            
+            if (chatMemories.length > 20) {
+                const keysToDelete = chatMemories.slice(20).map(([k]) => k);
+                keysToDelete.forEach(k => delete this.userMemory[k]);
+            }
+            
+            this.saveMemoryToStorage();
+        }
+    }
+
+    detectAndSaveRemember(text) {
+        // Detect "remember" keywords and save to global persistent memory
+        if (!text || typeof text !== 'string') return;
+
+        const lower = text.toLowerCase();
+        
+        // Look for "remember" patterns - these are saved globally across ALL chats
+        const rememberPatterns = [
+            /(?:remember|note|save|keep in mind|memorize)\s+(?:that\s+)?(?:i\s+|you\s+)?([^.!?]+)/gi,
+            /(?:i\s+(?:am|have|like|prefer|use|work with|know))\s+([^.!?]+)/gi
+        ];
+
+        rememberPatterns.forEach(pattern => {
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                const value = match[1]?.trim();
+                if (value && value.length > 5 && value.length < 500) {
+                    const key = this.generateMemoryKey(value);
+                    this.addToGlobalMemory(key, value);
+                    this.showNotification(`💾 Global memory saved: "${value.substring(0, 25)}..."`);
+                }
+            }
+        });
+    }
+
+    saveMemoryToStorage() {
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.MEMORY, JSON.stringify(this.userMemory));
+        } catch (error) {
+            console.error('Error saving memory:', error);
         }
     }
 
@@ -702,7 +884,53 @@ class NEXAI {
     // ===========================
 
     async callAIAPI(message, conversationHistory = []) {
-        const systemPrompt = `You are ${this.AI_NAME}, an advanced AI assistant created by ${this.OWNER}. Be helpful, creative, and intelligent. When asked about your creator, acknowledge that you were created by ${this.OWNER}.`;
+        // Build context with memory and file information
+        let contextInfo = `You are ${this.AI_NAME}, an advanced AI assistant created by ${this.OWNER}. Be helpful, creative, and intelligent. When asked about your creator, acknowledge that you were created by ${this.OWNER}.\n\n`;
+        
+        // Add global persistent memory (across all chats)
+        const globalMemoryEntries = Object.entries(this.globalMemory);
+        if (globalMemoryEntries.length > 0) {
+            contextInfo += `[Persistent User Profile (Across All Chats)]\n`;
+            globalMemoryEntries.slice(0, 10).forEach(([key, entry]) => {
+                contextInfo += `- ${entry.value}\n`;
+            });
+            contextInfo += '\n';
+        }
+
+        // Add chat-specific memory context
+        const memoryEntries = Object.entries(this.userMemory);
+        if (memoryEntries.length > 0) {
+            contextInfo += `[Chat History Context]\n`;
+            memoryEntries.slice(0, 5).forEach(([key, entry]) => {
+                if (entry.type !== 'chat_history') {
+                    contextInfo += `- ${entry.value}\n`;
+                }
+            });
+            contextInfo += '\n';
+        }
+        
+        // Add conversation history for context (last 5 messages)
+        if (conversationHistory.length > 0) {
+            contextInfo += `[Recent Conversation Context]\n`;
+            conversationHistory.slice(-5).forEach(msg => {
+                const role = msg.role === 'user' ? 'User' : 'Assistant';
+                const preview = msg.content.substring(0, 100);
+                contextInfo += `${role}: ${preview}${msg.content.length > 100 ? '...' : ''}\n`;
+            });
+            contextInfo += '\n';
+        }
+        
+        // Add file context from current chat
+        const currentChat = this.chats.find(c => c.id === this.currentChatId);
+        if (currentChat && currentChat.uploadedFiles && currentChat.uploadedFiles.length > 0) {
+            contextInfo += `[Uploaded Files in This Chat]\n`;
+            currentChat.uploadedFiles.forEach(file => {
+                contextInfo += `- ${file.name} (${this.formatFileSize(file.size)})\n`;
+            });
+            contextInfo += '\n';
+        }
+
+        const systemPrompt = contextInfo;
 
         try {
             const encodedMessage = encodeURIComponent(message);
@@ -818,25 +1046,87 @@ class NEXAI {
         const file = event.target.files[0];
         if (!file) return;
 
-        const validTypes = ['text/plain', 'application/json', 'application/pdf'];
-        if (!validTypes.includes(file.type) && !file.name.endsWith('.txt')) {
-            alert('Please upload a .txt, .json, or .pdf file');
+        const validTypes = ['text/plain', 'application/json', 'application/pdf', 'text/markdown'];
+        const validExtensions = ['.txt', '.json', '.pdf', '.md', '.csv', '.log'];
+        const isValidType = validTypes.includes(file.type) || validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+        
+        if (!isValidType) {
+            alert('Please upload a .txt, .json, .pdf, .md, .csv, or .log file');
             return;
         }
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            const content = e.target.result;
-            this.elements.messageInput.value = content.substring(0, 2000);
-            this.focusInput();
+            try {
+                const content = e.target.result;
+                const fileInfo = `[📎 File: ${file.name} (${this.formatFileSize(file.size)})]\n\n${content}`;
+                
+                // Store file in current chat for context
+                const currentChat = this.chats.find(c => c.id === this.currentChatId);
+                if (currentChat) {
+                    if (!currentChat.uploadedFiles) {
+                        currentChat.uploadedFiles = [];
+                    }
+                    currentChat.uploadedFiles.push({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        uploadedAt: new Date().toISOString(),
+                        content: content.substring(0, 50000) // Limit content size
+                    });
+                    this.saveAllData();
+                }
+                
+                // Add to message input with file context
+                const messageWithFile = `[File: ${file.name}]\n\n${content.substring(0, 3000)}${content.length > 3000 ? '\n...[content truncated]' : ''}`;
+                this.elements.messageInput.value = messageWithFile;
+                
+                // Show file upload notification
+                this.showNotification(`✅ File "${file.name}" uploaded successfully!`);
+                this.focusInput();
+            } catch (error) {
+                this.showNotification(`❌ Error processing file: ${error.message}`);
+            }
         };
 
         reader.onerror = () => {
-            alert('Error reading file');
+            this.showNotification('❌ Error reading file. Please try again.');
         };
 
         reader.readAsText(file);
         this.elements.fileInput.value = '';
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    showNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--primary-color);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 300px;
+            word-wrap: break-word;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     // ===========================
