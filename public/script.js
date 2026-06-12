@@ -4,7 +4,18 @@
 
 class NEXAI {
     constructor() {
-        this.API_URL   = `${window.location.origin}/api`;
+        // Determine API URL based on environment
+        // Priority: window.NEXAI_API_URL > localhost > same origin
+        if (window.NEXAI_API_URL) {
+            this.API_URL = window.NEXAI_API_URL;
+        } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Local development
+            this.API_URL = 'http://localhost:3000/api';
+        } else {
+            // Production or v0 preview - use same origin
+            this.API_URL = `${window.location.origin}/api`;
+        }
+        
         this.token     = localStorage.getItem('nexai_token');
         this.userId    = localStorage.getItem('nexai_userId');
         this.user      = null;
