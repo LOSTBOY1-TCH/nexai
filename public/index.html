@@ -11,6 +11,24 @@
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- API Configuration (must be before script.js) -->
+    <script>
+        // Auto-detect API URL based on environment
+        (function() {
+            const hostname = window.location.hostname;
+            const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+            const isProduction = window.location.protocol === 'https:';
+            
+            // For v0 preview or local development, use localhost server
+            // For production, use same origin
+            if (!isLocalhost && !isProduction) {
+                // v0 preview or local development
+                window.NEXAI_API_URL = 'http://localhost:3000/api';
+            }
+            // Otherwise, default behavior in script.js applies
+        })();
+    </script>
 </head>
 <body>
     <!-- Auth Container (Initially Visible) -->
@@ -362,6 +380,10 @@
     <!-- Toast notification -->
     <div id="notification" class="notification" role="alert" aria-live="polite"></div>
 
+    <!-- API Configuration (must load before script.js) -->
+    <script src="config.js"></script>
+    
+    <!-- Main Application Script -->
     <script src="script.js"></script>
 </body>
 </html>
