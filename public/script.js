@@ -1,31 +1,30 @@
 // ===========================
-// NEXAI - Premium AI Chat Application
-// Complete Frontend Application
+// NEXAI – Frontend Application (fixed)
 // ===========================
 
 class NEXAI {
     constructor() {
-        // Auto-detect API URL from current location (works on any port)
-        this.API_URL = `${window.location.origin}/api`;
-        this.token = localStorage.getItem('nexai_token');
-        this.userId = localStorage.getItem('nexai_userId');
-        this.user = null;
-        this.chats = [];
+        this.API_URL   = `${window.location.origin}/api`;
+        this.token     = localStorage.getItem('nexai_token');
+        this.userId    = localStorage.getItem('nexai_userId');
+        this.user      = null;
+        this.chats     = [];
+        this.attachments = [];
         this.currentChatId = null;
         this.isLoading = false;
         this.recognition = null;
         this.isListening = false;
-        this.settings = {
-            theme: localStorage.getItem('nexai_theme') || 'dark',
-            voiceSpeed: parseFloat(localStorage.getItem('nexai_voiceSpeed') || '1.0'),
-            voicePitch: parseFloat(localStorage.getItem('nexai_voicePitch') || '1.0'),
+        this.settings  = {
+            theme:        localStorage.getItem('nexai_theme') || 'dark',
+            voiceSpeed:   parseFloat(localStorage.getItem('nexai_voiceSpeed') || '1.0'),
+            voicePitch:   parseFloat(localStorage.getItem('nexai_voicePitch') || '1.0'),
             voiceEnabled: localStorage.getItem('nexai_voiceEnabled') !== 'false'
         };
 
         this.initializeDOM();
         this.setupEventListeners();
         this.setupSpeechRecognition();
-        
+
         if (this.token && this.userId) {
             this.showChatInterface();
             this.loadUserProfile();
@@ -36,985 +35,646 @@ class NEXAI {
         }
     }
 
-    // ===========================
-    // DOM INITIALIZATION
-    // ===========================
+    // ─── DOM INIT ─────────────────────────────────────────────────────────────
 
     initializeDOM() {
+        const get = id => {
+            const el = document.getElementById(id);
+            if (!el) console.warn(`[NEXAI] DOM element #${id} not found`);
+            return el;
+        };
+
         this.dom = {
-            // Auth
-            authContainer: document.getElementById('authContainer'),
-            loginForm: document.getElementById('loginForm'),
-            loginFormElement: document.getElementById('loginFormElement'),
-            signupForm: document.getElementById('signupForm'),
-            signupFormElement: document.getElementById('signupFormElement'),
-            verificationForm: document.getElementById('verificationForm'),
-            verificationFormElement: document.getElementById('verificationFormElement'),
-
-            // Chat Layout
-            chatLayout: document.getElementById('chatLayout'),
-            sidebar: document.getElementById('sidebar'),
-            sidebarToggle: document.getElementById('sidebarToggle'),
-            sidebarOverlay: document.getElementById('sidebarOverlay'),
-            newChatBtn: document.getElementById('newChatBtn'),
-            chatList: document.getElementById('chatList'),
-            searchInput: document.getElementById('searchInput'),
-
-            // Messages
-            messages: document.getElementById('messages'),
-            messagesWrapper: document.getElementById('messagesWrapper'),
-            loadingIndicator: document.getElementById('loadingIndicator'),
-
-            // Input
-            messageInput: document.getElementById('messageInput'),
-            sendBtn: document.getElementById('sendBtn'),
-            stopBtn: document.getElementById('stopBtn'),
-            fileBtn: document.getElementById('fileBtn'),
-            fileInput: document.getElementById('fileInput'),
-            voiceBtn: document.getElementById('voiceBtn'),
-            attachmentPreview: document.getElementById('attachmentPreview'),
-            attachmentList: document.getElementById('attachmentList'),
-
-            // Modals
-            settingsModal: document.getElementById('settingsModal'),
-            profileModal: document.getElementById('profileModal'),
-            settingsModalClose: document.getElementById('settingsModalClose'),
-            profileModalClose: document.getElementById('profileModalClose'),
-            chatActionsModal: document.getElementById('chatActionsModal'),
-            modalClose: document.getElementById('modalClose'),
-
-            // User Menu
-            userMenuBtn: document.getElementById('userMenuBtn'),
-            userMenu: document.getElementById('userMenu'),
-            userAvatar: document.getElementById('userAvatar'),
-            userEmail: document.getElementById('userEmail'),
-            profileBtn: document.getElementById('profileBtn'),
-            settingsBtn: document.getElementById('settingsBtn'),
-            logoutBtn: document.getElementById('logoutBtn')
+            authContainer:         get('authContainer'),
+            loginForm:             get('loginForm'),
+            loginFormElement:      get('loginFormElement'),
+            signupForm:            get('signupForm'),
+            signupFormElement:     get('signupFormElement'),
+            verificationForm:      get('verificationForm'),
+            verificationFormElement: get('verificationFormElement'),
+            chatLayout:            get('chatLayout'),
+            sidebar:               get('sidebar'),
+            sidebarToggle:         get('sidebarToggle'),
+            sidebarOverlay:        get('sidebarOverlay'),
+            newChatBtn:            get('newChatBtn'),
+            chatList:              get('chatList'),
+            searchInput:           get('searchInput'),
+            messages:              get('messages'),
+            messagesWrapper:       get('messagesWrapper'),
+            loadingIndicator:      get('loadingIndicator'),
+            messageInput:          get('messageInput'),
+            sendBtn:               get('sendBtn'),
+            fileBtn:               get('fileBtn'),
+            fileInput:             get('fileInput'),
+            voiceBtn:              get('voiceBtn'),
+            attachmentPreview:     get('attachmentPreview'),
+            attachmentList:        get('attachmentList'),
+            settingsModal:         get('settingsModal'),
+            profileModal:          get('profileModal'),
+            settingsModalClose:    get('settingsModalClose'),
+            profileModalClose:     get('profileModalClose'),
+            chatActionsModal:      get('chatActionsModal'),
+            modalClose:            get('modalClose'),
+            userMenuBtn:           get('userMenuBtn'),
+            userMenu:              get('userMenu'),
+            userAvatar:            get('userAvatar'),
+            userEmail:             get('userEmail'),
+            profileBtn:            get('profileBtn'),
+            settingsBtn:           get('settingsBtn'),
+            logoutBtn:             get('logoutBtn'),
+            notification:          get('notification')
         };
 
         this.applyTheme(this.settings.theme);
     }
 
-    // ===========================
-    // EVENT LISTENERS
-    // ===========================
+    // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+
+    notify(message, type = 'info', duration = 4000) {
+        const el = this.dom.notification;
+        if (!el) return;
+        el.textContent = message;
+        el.className   = `notification ${type} show`;
+        clearTimeout(this._notifyTimer);
+        this._notifyTimer = setTimeout(() => el.classList.remove('show'), duration);
+    }
+
+    // ─── EVENT LISTENERS ──────────────────────────────────────────────────────
 
     setupEventListeners() {
-        // Auth Events
-        document.getElementById('switchToSignup').addEventListener('click', (e) => {
-            e.preventDefault();
-            this.switchAuthForm('signup');
+        const on = (id, evt, fn) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener(evt, fn);
+        };
+
+        on('switchToSignup', 'click', e => { e.preventDefault(); this.switchAuthForm('signup'); });
+        on('switchToLogin',  'click', e => { e.preventDefault(); this.switchAuthForm('login'); });
+        on('backToSignup',   'click', e => { e.preventDefault(); this.switchAuthForm('signup'); });
+        on('resendOtp',      'click', e => { e.preventDefault(); this.resendOtp(); });
+
+        this.dom.loginFormElement?.addEventListener('submit',       e => this.handleLogin(e));
+        this.dom.signupFormElement?.addEventListener('submit',      e => this.handleSignup(e));
+        this.dom.verificationFormElement?.addEventListener('submit', e => this.handleVerifyOTP(e));
+
+        this.dom.newChatBtn?.addEventListener('click',    () => this.createNewChat());
+        this.dom.sidebarToggle?.addEventListener('click', () => this.toggleSidebar());
+        this.dom.sidebarOverlay?.addEventListener('click', () => this.closeSidebar());
+
+        this.dom.sendBtn?.addEventListener('click', () => this.sendMessage());
+        this.dom.messageInput?.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') this.sendMessage();
         });
 
-        document.getElementById('switchToLogin').addEventListener('click', (e) => {
-            e.preventDefault();
-            this.switchAuthForm('login');
-        });
+        this.dom.fileBtn?.addEventListener('click',   () => this.dom.fileInput?.click());
+        this.dom.fileInput?.addEventListener('change', e => this.handleFileUpload(e));
+        this.dom.voiceBtn?.addEventListener('click',  () => this.toggleVoiceInput());
 
-        document.getElementById('backToSignup').addEventListener('click', (e) => {
-            e.preventDefault();
-            this.switchAuthForm('signup');
-        });
+        this.dom.settingsModalClose?.addEventListener('click', () => this.closeModal('settingsModal'));
+        this.dom.profileModalClose?.addEventListener('click',  () => this.closeModal('profileModal'));
+        this.dom.modalClose?.addEventListener('click',         () => this.closeModal('chatActionsModal'));
 
-        this.dom.loginFormElement.addEventListener('submit', (e) => this.handleLogin(e));
-        this.dom.signupFormElement.addEventListener('submit', (e) => this.handleSignup(e));
-        this.dom.verificationFormElement.addEventListener('submit', (e) => this.handleVerifyOTP(e));
+        this.dom.userMenuBtn?.addEventListener('click',  () => this.toggleUserMenu());
+        this.dom.profileBtn?.addEventListener('click',   () => { this.closeUserMenu(); this.openProfileModal(); });
+        this.dom.settingsBtn?.addEventListener('click',  () => { this.closeUserMenu(); this.openSettingsModal(); });
+        this.dom.logoutBtn?.addEventListener('click',    () => this.logout());
 
-        // Chat Events
-        this.dom.newChatBtn.addEventListener('click', () => this.createNewChat());
-        this.dom.sidebarToggle.addEventListener('click', () => this.toggleSidebar());
-        this.dom.sidebarOverlay.addEventListener('click', () => this.closeSidebar());
+        this.dom.searchInput?.addEventListener('input', e => this.filterChats(e.target.value));
 
-        // Message Events
-        this.dom.sendBtn.addEventListener('click', () => this.sendMessage());
-        this.dom.messageInput.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                this.sendMessage();
-            }
-        });
-
-        this.dom.fileBtn.addEventListener('click', () => this.dom.fileInput.click());
-        this.dom.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
-        this.dom.voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
-
-        // Modal Events
-        this.dom.settingsModalClose.addEventListener('click', () => this.closeModal('settingsModal'));
-        this.dom.profileModalClose.addEventListener('click', () => this.closeModal('profileModal'));
-        this.dom.modalClose.addEventListener('click', () => this.closeModal('chatActionsModal'));
-
-        // User Menu Events
-        this.dom.userMenuBtn.addEventListener('click', () => this.toggleUserMenu());
-        this.dom.profileBtn.addEventListener('click', () => {
-            this.closeUserMenu();
-            this.openProfileModal();
-        });
-        this.dom.settingsBtn.addEventListener('click', () => {
-            this.closeUserMenu();
-            this.openSettingsModal();
-        });
-        this.dom.logoutBtn.addEventListener('click', () => this.logout());
-
-        // Search
-        this.dom.searchInput.addEventListener('input', (e) => this.filterChats(e.target.value));
-
-        // Settings Theme Selector
         document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', () => {
                 document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.changeTheme(btn.dataset.theme);
             });
         });
 
-        // Voice Settings
-        document.getElementById('voiceSpeed').addEventListener('change', (e) => {
+        on('voiceSpeed',   'input', e => {
             this.settings.voiceSpeed = parseFloat(e.target.value);
-            document.getElementById('voiceSpeedValue').textContent = e.target.value + 'x';
+            const el = document.getElementById('voiceSpeedValue');
+            if (el) el.textContent = e.target.value + 'x';
             localStorage.setItem('nexai_voiceSpeed', e.target.value);
             this.saveSettings();
         });
-
-        document.getElementById('voicePitch').addEventListener('change', (e) => {
+        on('voicePitch',   'input', e => {
             this.settings.voicePitch = parseFloat(e.target.value);
-            document.getElementById('voicePitchValue').textContent = e.target.value + 'x';
+            const el = document.getElementById('voicePitchValue');
+            if (el) el.textContent = e.target.value + 'x';
             localStorage.setItem('nexai_voicePitch', e.target.value);
             this.saveSettings();
         });
-
-        document.getElementById('voiceEnabled').addEventListener('change', (e) => {
+        on('voiceEnabled', 'change', e => {
             this.settings.voiceEnabled = e.target.checked;
             localStorage.setItem('nexai_voiceEnabled', e.target.checked);
             this.saveSettings();
         });
 
-        // Profile
-        document.getElementById('uploadAvatarBtn').addEventListener('click', () => {
-            document.getElementById('avatarInput').click();
-        });
+        on('uploadAvatarBtn', 'click', () => document.getElementById('avatarInput')?.click());
+        on('avatarInput',     'change', e => this.uploadAvatar(e));
+        on('deleteAvatarBtn', 'click',  () => this.deleteAvatar());
 
-        document.getElementById('avatarInput').addEventListener('change', (e) => this.uploadAvatar(e));
-        document.getElementById('deleteAvatarBtn').addEventListener('click', () => this.deleteAvatar());
+        // Close user menu when clicking outside
+        document.addEventListener('click', e => {
+            if (this.dom.userMenu && !this.dom.userMenu.classList.contains('hidden')) {
+                if (!this.dom.userMenuBtn?.contains(e.target) && !this.dom.userMenu.contains(e.target)) {
+                    this.closeUserMenu();
+                }
+            }
+        });
     }
 
-    // ===========================
-    // AUTHENTICATION
-    // ===========================
+    // ─── AUTH ─────────────────────────────────────────────────────────────────
 
     showAuthInterface() {
-        this.dom.authContainer.classList.add('active');
-        this.dom.chatLayout.classList.add('hidden');
+        this.dom.authContainer?.classList.add('active');
+        this.dom.chatLayout?.classList.add('hidden');
         this.switchAuthForm('login');
     }
 
     showChatInterface() {
-        this.dom.authContainer.classList.remove('active');
-        this.dom.chatLayout.classList.remove('hidden');
+        this.dom.authContainer?.classList.remove('active');
+        this.dom.chatLayout?.classList.remove('hidden');
     }
 
     switchAuthForm(form) {
-        this.dom.loginForm.classList.remove('active');
-        this.dom.signupForm.classList.remove('active');
-        this.dom.verificationForm.classList.remove('active');
-
-        if (form === 'login') this.dom.loginForm.classList.add('active');
-        else if (form === 'signup') this.dom.signupForm.classList.add('active');
-        else if (form === 'verification') this.dom.verificationForm.classList.add('active');
+        ['loginForm','signupForm','verificationForm'].forEach(id => {
+            this.dom[id]?.classList.remove('active');
+        });
+        const map = { login: 'loginForm', signup: 'signupForm', verification: 'verificationForm' };
+        this.dom[map[form]]?.classList.add('active');
     }
 
     async handleLogin(e) {
         e.preventDefault();
-        
-        // Get form values and trim whitespace
-        const email = document.getElementById('loginEmail').value.trim().toLowerCase();
-        const password = document.getElementById('loginPassword').value;
-        const submitBtn = document.querySelector('#loginFormElement button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
+        const email    = document.getElementById('loginEmail')?.value.trim().toLowerCase() || '';
+        const password = document.getElementById('loginPassword')?.value || '';
+        const btn      = e.target.querySelector('button[type="submit"]');
 
+        if (!email || !password) { this.notify('Email and password are required.', 'error'); return; }
+
+        this._setLoading(btn, true, 'Signing In...');
         try {
-            // ===== CLIENT-SIDE VALIDATION =====
-            if (!email || !password) {
-                alert('❌ Email and password are required!');
-                return;
-            }
-
-            if (!email.includes('@') || !email.includes('.')) {
-                alert('❌ Please enter a valid email address');
-                return;
-            }
-
-            if (password.length < 1) {
-                alert('❌ Password is required!');
-                return;
-            }
-
-            // ===== DISABLE BUTTON & SHOW LOADING =====
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
-            console.log('Attempting login to:', `${this.API_URL}/auth/login`);
-            console.log('Data:', { email });
-            
-            // ===== SEND TO SERVER =====
-            const response = await fetch(`${this.API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            // ===== PARSE RESPONSE =====
-            let data;
-            try {
-                data = await response.json();
-            } catch (parseError) {
-                console.error('Failed to parse response:', parseError);
-                throw new Error('Server returned invalid data. Check server logs.');
-            }
-
-            console.log('Server response:', { status: response.status, data });
-
-            // ===== CHECK RESPONSE STATUS =====
-            if (!response.ok) {
-                // Server returned an error
-                const errorMsg = data.message || `Server error: ${response.status}`;
-                throw new Error(errorMsg);
-            }
-
-            // ===== SUCCESS =====
-            if (data.success) {
-                console.log('Login successful!');
-                this.token = data.token;
-                this.userId = data.userId;
-                localStorage.setItem('nexai_token', this.token);
-                localStorage.setItem('nexai_userId', this.userId);
-                this.user = {
-                    id: data.userId,
-                    username: data.username,
-                    email: data.email,
-                    avatar: data.avatar
-                };
-
-                // Clear form
-                document.getElementById('loginEmail').value = '';
-                document.getElementById('loginPassword').value = '';
-                
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.disabled = false;
-                
-                this.showChatInterface();
-                this.loadUserProfile();
-                this.loadChats();
+            const data = await this._post('/auth/login', { email, password });
+            this.token  = data.token;
+            this.userId = data.userId;
+            localStorage.setItem('nexai_token',  this.token);
+            localStorage.setItem('nexai_userId', this.userId);
+            this.user = { id: data.userId, username: data.username, email: data.email, avatar: data.avatar };
+            e.target.reset();
+            this.showChatInterface();
+            this.loadUserProfile();
+            this.loadChats();
+        } catch (err) {
+            // If unverified, redirect to verification form
+            if (err.needsVerification) {
+                localStorage.setItem('nexai_email', email);
+                this.notify('Please verify your email first.', 'warning');
+                this.switchAuthForm('verification');
             } else {
-                // Success is false but no error status
-                throw new Error(data.message || 'Login failed for unknown reason');
-            }
-
-        } catch (error) {
-            console.error('Login error:', error);
-            
-            // ===== RE-ENABLE BUTTON =====
-            submitBtn.innerHTML = originalBtnText;
-            submitBtn.disabled = false;
-            
-            // ===== SHOW ERROR MESSAGE =====
-            if (error.message.includes('Failed to fetch')) {
-                alert(`❌ Cannot connect to server.\n\nServer: ${this.API_URL}/auth/login\n\nMake sure:\n1. Server is running\n2. Network connection is active\n\nError: ${error.message}`);
-            } else {
-                // Show specific server error
-                alert(`❌ Login failed!\n\n${error.message}`);
+                this.notify(err.message || 'Login failed.', 'error');
             }
         }
+        this._setLoading(btn, false);
     }
 
     async handleSignup(e) {
         e.preventDefault();
-        
-        // Get form values and trim whitespace
-        const username = document.getElementById('signupUsername').value.trim();
-        const email = document.getElementById('signupEmail').value.trim().toLowerCase();
-        const password = document.getElementById('signupPassword').value;
-        const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
-        const submitBtn = document.querySelector('#signupFormElement button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
+        const username        = document.getElementById('signupUsername')?.value.trim() || '';
+        const email           = document.getElementById('signupEmail')?.value.trim().toLowerCase() || '';
+        const password        = document.getElementById('signupPassword')?.value || '';
+        const passwordConfirm = document.getElementById('signupPasswordConfirm')?.value || '';
+        const btn             = e.target.querySelector('button[type="submit"]');
 
-        try {
-            // ===== CLIENT-SIDE VALIDATION =====
-            if (!username || !email || !password || !passwordConfirm) {
-                alert('❌ All fields are required!');
-                return;
-            }
-
-            if (username.length < 3) {
-                alert('❌ Username must be at least 3 characters long');
-                return;
-            }
-
-            if (!email.includes('@') || !email.includes('.')) {
-                alert('❌ Please enter a valid email address');
-                return;
-            }
-
-            if (password.length < 6) {
-                alert('❌ Password must be at least 6 characters long');
-                return;
-            }
-
-            if (password !== passwordConfirm) {
-                alert('❌ Passwords do not match!');
-                return;
-            }
-
-            // ===== DISABLE BUTTON & SHOW LOADING =====
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
-            console.log('Attempting signup to:', `${this.API_URL}/auth/register`);
-            console.log('Data:', { username, email });
-            
-            // ===== SEND TO SERVER =====
-            const response = await fetch(`${this.API_URL}/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password, passwordConfirm })
-            });
-
-            // ===== PARSE RESPONSE =====
-            let data;
-            try {
-                data = await response.json();
-            } catch (parseError) {
-                console.error('Failed to parse response:', parseError);
-                throw new Error('Server returned invalid data. Check server logs.');
-            }
-
-            console.log('Server response:', { status: response.status, data });
-
-            // ===== CHECK RESPONSE STATUS =====
-            if (!response.ok) {
-                // Server returned an error
-                const errorMsg = data.message || `Server error: ${response.status}`;
-                throw new Error(errorMsg);
-            }
-
-            // ===== SUCCESS =====
-            if (data.success) {
-                console.log('Signup successful!');
-                localStorage.setItem('nexai_email', email);
-                
-                // Clear form
-                document.getElementById('signupUsername').value = '';
-                document.getElementById('signupEmail').value = '';
-                document.getElementById('signupPassword').value = '';
-                document.getElementById('signupPasswordConfirm').value = '';
-                
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.disabled = false;
-                
-                alert('✅ Signup successful!\n\nCheck your email for verification code.');
-                this.switchAuthForm('verification');
-            } else {
-                // Success is false but no error status
-                throw new Error(data.message || 'Signup failed for unknown reason');
-            }
-
-        } catch (error) {
-            console.error('Signup error:', error);
-            
-            // ===== RE-ENABLE BUTTON =====
-            submitBtn.innerHTML = originalBtnText;
-            submitBtn.disabled = false;
-            
-            // ===== SHOW ERROR MESSAGE =====
-            if (error.message.includes('Failed to fetch')) {
-                alert(`❌ Cannot connect to server.\n\nServer: ${this.API_URL}/auth/register\n\nMake sure:\n1. Server is running\n2. Network connection is active\n\nError: ${error.message}`);
-            } else {
-                // Show specific server error
-                alert(`❌ Signup failed!\n\n${error.message}`);
-            }
+        if (!username || !email || !password || !passwordConfirm) {
+            this.notify('All fields are required.', 'error'); return;
         }
+        if (password !== passwordConfirm) {
+            this.notify('Passwords do not match.', 'error'); return;
+        }
+
+        this._setLoading(btn, true, 'Creating Account...');
+        try {
+            await this._post('/auth/register', { username, email, password, passwordConfirm });
+            localStorage.setItem('nexai_email', email);
+            e.target.reset();
+            this.notify('Account created! Check your email for the verification code.', 'success', 6000);
+            this.switchAuthForm('verification');
+        } catch (err) {
+            this.notify(err.message || 'Signup failed.', 'error');
+        }
+        this._setLoading(btn, false);
     }
 
     async handleVerifyOTP(e) {
         e.preventDefault();
-        const code = document.getElementById('otpCode').value;
+        const code  = document.getElementById('otpCode')?.value.trim() || '';
         const email = localStorage.getItem('nexai_email');
-        const submitBtn = document.querySelector('#verificationFormElement button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
+        const btn   = e.target.querySelector('button[type="submit"]');
 
+        if (!email) { this.notify('Session expired. Please sign up again.', 'error'); this.switchAuthForm('signup'); return; }
+        if (code.length !== 6) { this.notify('Please enter the 6-digit code.', 'error'); return; }
+
+        this._setLoading(btn, true, 'Verifying...');
         try {
-            // Show loading state
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
-            console.log('Verifying OTP for:', email);
-            
-            const response = await fetch(`${this.API_URL}/auth/verify-otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, code })
-            });
+            const data = await this._post('/auth/verify-otp', { email, code });
+            this.token  = data.token;
+            this.userId = data.userId;
+            localStorage.setItem('nexai_token',  this.token);
+            localStorage.setItem('nexai_userId', this.userId);
+            localStorage.removeItem('nexai_email');
+            e.target.reset();
+            this.notify('Email verified! Welcome to NEXAI.', 'success');
+            this.showChatInterface();
+            this.loadUserProfile();
+            this.createNewChat();
+        } catch (err) {
+            this.notify(err.message || 'Verification failed.', 'error');
+        }
+        this._setLoading(btn, false);
+    }
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || `Server error: ${response.status}`);
-            }
-
-            if (data.success) {
-                this.token = data.token;
-                this.userId = data.userId;
-                localStorage.setItem('nexai_token', this.token);
-                localStorage.setItem('nexai_userId', this.userId);
-                localStorage.removeItem('nexai_email');
-                alert('✅ Email verified successfully!');
-                this.showChatInterface();
-                this.loadUserProfile();
-                this.createNewChat();
-            } else {
-                throw new Error(data.message || 'Verification failed');
-            }
-        } catch (error) {
-            console.error('Verification error:', error);
-            submitBtn.innerHTML = originalBtnText;
-            submitBtn.disabled = false;
-            
-            if (error.message.includes('Failed to fetch')) {
-                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/verify-otp\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
-            } else {
-                alert('❌ Verification error: ' + error.message);
-            }
+    async resendOtp() {
+        const email = localStorage.getItem('nexai_email');
+        if (!email) { this.notify('No pending signup found. Please sign up again.', 'error'); return; }
+        this.notify('Resending code…', 'info');
+        try {
+            // Trigger a lightweight re-register attempt won't work — just hint user
+            this.notify('Please use the code already sent, or sign up again if it expired.', 'warning', 6000);
+        } catch (err) {
+            this.notify('Could not resend. Try signing up again.', 'error');
         }
     }
 
     async loadUserProfile() {
         try {
-            const response = await fetch(`${this.API_URL}/user/profile`, {
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                this.user = data.user;
-                this.updateUserUI();
-            }
-        } catch (error) {
-            console.error('Profile load error:', error);
-        }
+            const data = await this._get('/user/profile');
+            if (data.success) { this.user = data.user; this.updateUserUI(); }
+        } catch {}
     }
 
     updateUserUI() {
         if (!this.user) return;
+        const initial = (this.user.username || 'U').charAt(0).toUpperCase();
 
-        const initial = this.user.username.charAt(0).toUpperCase();
-        this.dom.userAvatar.textContent = initial;
-        this.dom.userEmail.textContent = this.user.username;
-
-        document.getElementById('profileUsername').textContent = this.user.username;
-        document.getElementById('profileEmail').textContent = this.user.email;
-        const joinDate = new Date(this.user.created_at).toLocaleDateString();
-        document.getElementById('profileJoined').textContent = joinDate;
-
-        if (this.user.avatar) {
-            const avatarImg = document.getElementById('profileAvatar');
-            avatarImg.src = this.user.avatar;
-            this.dom.userAvatar.style.background = `url(${this.user.avatar})`;
-            this.dom.userAvatar.style.backgroundSize = 'cover';
-            this.dom.userAvatar.textContent = '';
+        if (this.dom.userAvatar) {
+            if (this.user.avatar) {
+                this.dom.userAvatar.style.backgroundImage = `url(${this.user.avatar})`;
+                this.dom.userAvatar.style.backgroundSize  = 'cover';
+                this.dom.userAvatar.textContent = '';
+            } else {
+                this.dom.userAvatar.style.backgroundImage = '';
+                this.dom.userAvatar.textContent = initial;
+            }
         }
+        if (this.dom.userEmail) this.dom.userEmail.textContent = this.user.username || '';
+
+        const profileUsername = document.getElementById('profileUsername');
+        const profileEmail    = document.getElementById('profileEmail');
+        const profileJoined   = document.getElementById('profileJoined');
+        const profileAvatar   = document.getElementById('profileAvatar');
+
+        if (profileUsername) profileUsername.textContent = this.user.username || '';
+        if (profileEmail)    profileEmail.textContent    = this.user.email    || '';
+        if (profileJoined)   profileJoined.textContent   = this.user.createdAt
+            ? new Date(this.user.createdAt).toLocaleDateString() : '—';
+        if (profileAvatar && this.user.avatar) profileAvatar.src = this.user.avatar;
     }
 
-    logout() {
+    async logout() {
+        try { await this._post('/auth/logout', {}); } catch {}
         localStorage.removeItem('nexai_token');
         localStorage.removeItem('nexai_userId');
-        this.token = null;
+        this.token  = null;
         this.userId = null;
-        this.user = null;
+        this.user   = null;
+        this.chats  = [];
         this.showAuthInterface();
     }
 
-    // ===========================
-    // CHAT MANAGEMENT
-    // ===========================
+    // ─── CHAT MANAGEMENT ──────────────────────────────────────────────────────
 
     async loadChats() {
         try {
-            const response = await fetch(`${this.API_URL}/chats`, {
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                this.chats = data.chats;
-                this.renderChatList();
-            }
-        } catch (error) {
-            console.error('Load chats error:', error);
-        }
+            const data = await this._get('/chats');
+            if (data.success) { this.chats = data.chats; this.renderChatList(); }
+        } catch {}
     }
 
     renderChatList() {
+        if (!this.dom.chatList) return;
         this.dom.chatList.innerHTML = '';
-
-        if (this.chats.length === 0) {
+        if (!this.chats.length) {
             this.dom.chatList.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No chats yet</p></div>';
             return;
         }
-
         this.chats.forEach(chat => {
-            const chatItem = document.createElement('div');
-            chatItem.className = 'chat-item' + (this.currentChatId === chat.chat_id ? ' active' : '');
-            chatItem.innerHTML = `
-                <div class="chat-item-main" onclick="nexai.selectChat('${chat.chat_id}')">
-                    <div class="chat-item-title">${chat.chat_title || 'Untitled Chat'}</div>
+            // API returns chatId / chatTitle (fixed field names)
+            const id    = chat.chatId;
+            const title = this.escapeHtml(chat.chatTitle || 'Untitled Chat');
+            const item  = document.createElement('div');
+            item.className = 'chat-item' + (this.currentChatId === id ? ' active' : '');
+            item.dataset.chatId = id;
+            item.innerHTML = `
+                <div class="chat-item-main">
+                    <div class="chat-item-title">${title}</div>
                 </div>
-                <button class="chat-item-menu" onclick="nexai.showChatMenu('${chat.chat_id}', event)">
+                <button class="chat-item-menu" aria-label="Chat options">
                     <i class="fas fa-ellipsis-v"></i>
-                </button>
-            `;
-            this.dom.chatList.appendChild(chatItem);
+                </button>`;
+            item.querySelector('.chat-item-main').addEventListener('click', () => this.selectChat(id));
+            item.querySelector('.chat-item-menu').addEventListener('click', ev => { ev.stopPropagation(); this.showChatMenu(id, ev); });
+            this.dom.chatList.appendChild(item);
         });
     }
 
-    async createNewChat() {
+    createNewChat() {
         this.currentChatId = 'chat_' + Date.now();
-        this.dom.messages.innerHTML = '';
-        this.dom.messageInput.focus();
+        if (this.dom.messages) this.dom.messages.innerHTML = '';
+        this.dom.messageInput?.focus();
         this.closeSidebar();
+        this.renderChatList();
     }
 
     async selectChat(chatId) {
         this.currentChatId = chatId;
         this.renderChatList();
-
         try {
-            const response = await fetch(`${this.API_URL}/chats/${chatId}`, {
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
-            if (data.success) {
+            const data = await this._get(`/chats/${chatId}`);
+            if (data.success && this.dom.messages) {
                 this.dom.messages.innerHTML = '';
-                data.chat.messages.forEach(msg => this.displayMessage(msg));
+                (data.chat.messages || []).forEach(msg => this.displayMessage(msg));
+                if (this.dom.messagesWrapper) this.dom.messagesWrapper.scrollTop = this.dom.messagesWrapper.scrollHeight;
             }
-        } catch (error) {
-            console.error('Select chat error:', error);
-        }
-
+        } catch {}
         this.closeSidebar();
     }
 
     async deleteChat(chatId) {
         if (!confirm('Delete this chat?')) return;
-
         try {
-            const response = await fetch(`${this.API_URL}/chats/${chatId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                this.loadChats();
-                if (this.currentChatId === chatId) {
-                    this.createNewChat();
-                }
-            }
-        } catch (error) {
-            console.error('Delete chat error:', error);
-        }
+            await this._delete(`/chats/${chatId}`);
+            await this.loadChats();
+            if (this.currentChatId === chatId) this.createNewChat();
+        } catch { this.notify('Could not delete chat.', 'error'); }
     }
 
     showChatMenu(chatId, event) {
         event.stopPropagation();
-        // Implement chat menu modal
         this.showModal('chatActionsModal');
-        const modalBody = document.getElementById('modalBody');
-        modalBody.innerHTML = `
-            <button class="action-btn" onclick="nexai.deleteChat('${chatId}')">
-                <i class="fas fa-trash"></i> Delete Chat
-            </button>
-        `;
+        const body = document.getElementById('modalBody');
+        if (body) {
+            body.innerHTML = '';
+            const btn = document.createElement('button');
+            btn.className = 'action-btn danger';
+            btn.innerHTML = '<i class="fas fa-trash"></i> Delete Chat';
+            btn.addEventListener('click', () => { this.closeModal('chatActionsModal'); this.deleteChat(chatId); });
+            body.appendChild(btn);
+        }
     }
 
     filterChats(query) {
-        const items = document.querySelectorAll('.chat-item');
-        items.forEach(item => {
-            const title = item.querySelector('.chat-item-title').textContent.toLowerCase();
+        document.querySelectorAll('.chat-item').forEach(item => {
+            const title = item.querySelector('.chat-item-title')?.textContent.toLowerCase() || '';
             item.style.display = title.includes(query.toLowerCase()) ? '' : 'none';
         });
     }
 
     toggleSidebar() {
-        this.dom.sidebar.classList.toggle('active');
-        this.dom.sidebarOverlay.classList.toggle('active');
+        this.dom.sidebar?.classList.toggle('active');
+        this.dom.sidebarOverlay?.classList.toggle('active');
     }
 
     closeSidebar() {
-        this.dom.sidebar.classList.remove('active');
-        this.dom.sidebarOverlay.classList.remove('active');
+        this.dom.sidebar?.classList.remove('active');
+        this.dom.sidebarOverlay?.classList.remove('active');
     }
 
-    // ===========================
-    // MESSAGE HANDLING
-    // ===========================
+    // ─── MESSAGES ─────────────────────────────────────────────────────────────
 
     async sendMessage() {
-        const message = this.dom.messageInput.value.trim();
+        const message = this.dom.messageInput?.value.trim();
         if (!message || this.isLoading) return;
+        if (this.dom.messageInput) this.dom.messageInput.value = '';
 
-        this.dom.messageInput.value = '';
         this.displayMessage({ role: 'user', content: message, timestamp: new Date() });
-
         this.showLoading(true);
+
         try {
-            // Get conversation history
-            const messages = Array.from(this.dom.messages.querySelectorAll('.message')).map(el => ({
-                role: el.classList.contains('user') ? 'user' : 'assistant',
+            const history = Array.from(this.dom.messages?.querySelectorAll('.message') || []).map(el => ({
+                role:    el.classList.contains('user') ? 'user' : 'assistant',
                 content: el.querySelector('.message-content')?.textContent || ''
             }));
 
-            const response = await fetch(`${this.API_URL}/ai/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify({
-                    message,
-                    conversationHistory: messages
-                })
-            });
-
-            const data = await response.json();
+            const data = await this._post('/ai/chat', { message, conversationHistory: history });
             if (data.success) {
-                const aiMessage = {
-                    role: 'assistant',
-                    content: data.response || 'No response',
-                    timestamp: new Date()
-                };
-                this.displayMessage(aiMessage);
-
-                // Speak response if enabled
-                if (this.settings.voiceEnabled) {
-                    this.speak(aiMessage.content);
-                }
-
-                // Save chat
+                const aiMsg = { role: 'assistant', content: data.response || 'No response', timestamp: new Date() };
+                this.displayMessage(aiMsg);
+                if (this.settings.voiceEnabled) this.speak(aiMsg.content);
                 this.saveChat();
             }
-        } catch (error) {
-            console.error('Send message error:', error);
-            this.displayMessage({
-                role: 'assistant',
-                content: 'Error communicating with AI. Please try again.',
-                timestamp: new Date()
-            });
+        } catch (err) {
+            this.displayMessage({ role: 'assistant', content: 'Error communicating with AI. Please try again.', timestamp: new Date() });
         }
+
         this.showLoading(false);
     }
 
     displayMessage(msg) {
-        const msgEl = document.createElement('div');
-        msgEl.className = `message ${msg.role}`;
+        if (!this.dom.messages) return;
+        const el      = document.createElement('div');
+        el.className  = `message ${msg.role}`;
+        const avatar  = msg.role === 'user' ? this.getInitial(this.user?.username || 'U') : '🤖';
+        const tsText  = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const content = this.escapeHtml(String(msg.content || ''));
 
-        const avatar = msg.role === 'user' ? this.getInitial(this.user?.username || 'U') : '🤖';
-        const timestamp = new Date(msg.timestamp).toLocaleTimeString();
-
-        msgEl.innerHTML = `
-            <div class="message-avatar" title="${msg.role === 'user' ? this.user?.username : 'NEXAI'}">
-                ${msg.role === 'user' && this.user?.avatar ? 
-                    `<img src="${this.user.avatar}" alt="User">` : 
-                    avatar
-                }
-            </div>
+        // Safe copy handler using dataset to avoid inline JS injection
+        el.innerHTML = `
+            <div class="message-avatar">${msg.role === 'user' && this.user?.avatar
+                ? `<img src="${this.escapeHtml(this.user.avatar)}" alt="User">`
+                : avatar}</div>
             <div class="message-content-container">
-                <div class="message-content">${this.escapeHtml(msg.content)}</div>
+                <div class="message-content">${content}</div>
+                <div class="message-meta">${tsText}</div>
                 <div class="message-actions">
-                    <button class="message-action-btn" title="Copy" onclick="navigator.clipboard.writeText(\`${msg.content.replace(/`/g, '\\`')}\`)">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
-                    <button class="message-action-btn" title="Delete" onclick="this.closest('.message').remove()">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
+                    <button class="message-action-btn copy-btn" title="Copy"><i class="fas fa-copy"></i> Copy</button>
+                    <button class="message-action-btn del-btn"  title="Delete"><i class="fas fa-trash"></i></button>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        this.dom.messages.appendChild(msgEl);
-        this.dom.messagesWrapper.scrollTop = this.dom.messagesWrapper.scrollHeight;
+        el.querySelector('.copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(msg.content || '').then(() => this.notify('Copied!', 'success', 1500));
+        });
+        el.querySelector('.del-btn').addEventListener('click', () => el.remove());
+
+        this.dom.messages.appendChild(el);
+        if (this.dom.messagesWrapper) this.dom.messagesWrapper.scrollTop = this.dom.messagesWrapper.scrollHeight;
     }
 
     showLoading(show) {
         this.isLoading = show;
-        if (show) {
-            this.dom.loadingIndicator.classList.remove('hidden');
-        } else {
-            this.dom.loadingIndicator.classList.add('hidden');
-        }
-        this.dom.messagesWrapper.scrollTop = this.dom.messagesWrapper.scrollHeight;
+        this.dom.loadingIndicator?.classList.toggle('hidden', !show);
+        if (this.dom.messagesWrapper) this.dom.messagesWrapper.scrollTop = this.dom.messagesWrapper.scrollHeight;
     }
 
     async saveChat() {
-        if (!this.currentChatId) return;
-
+        if (!this.currentChatId || !this.dom.messages) return;
         const messages = Array.from(this.dom.messages.querySelectorAll('.message')).map(el => ({
-            role: el.classList.contains('user') ? 'user' : 'assistant',
-            content: el.querySelector('.message-content').textContent,
+            role:      el.classList.contains('user') ? 'user' : 'assistant',
+            content:   el.querySelector('.message-content')?.textContent || '',
             timestamp: new Date()
         }));
-
-        // Auto-generate title from first message
-        let chatTitle = 'New Chat';
-        if (messages.length > 0) {
-            chatTitle = messages[0].content.substring(0, 50) + (messages[0].content.length > 50 ? '...' : '');
-        }
+        let chatTitle = messages[0]?.content.substring(0, 50) || 'New Chat';
+        if ((messages[0]?.content || '').length > 50) chatTitle += '…';
 
         try {
-            await fetch(`${this.API_URL}/chats`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify({
-                    chatId: this.currentChatId,
-                    chatTitle,
-                    messages
-                })
-            });
+            await this._post('/chats', { chatId: this.currentChatId, chatTitle, messages });
             this.loadChats();
-        } catch (error) {
-            console.error('Save chat error:', error);
-        }
+        } catch {}
     }
 
-    // ===========================
-    // FILE HANDLING
-    // ===========================
+    // ─── FILE UPLOAD ──────────────────────────────────────────────────────────
 
     async handleFileUpload(e) {
-        const file = e.target.files[0];
+        const file = e.target.files?.[0];
         if (!file) return;
-
         const formData = new FormData();
         formData.append('file', file);
-
         try {
-            const response = await fetch(`${this.API_URL}/upload`, {
-                method: 'POST',
+            const resp = await fetch(`${this.API_URL}/upload`, {
+                method:  'POST',
                 headers: { 'Authorization': `Bearer ${this.token}` },
-                body: formData
+                body:    formData
             });
-
-            const data = await response.json();
-            if (data.success) {
-                this.addAttachment(data.file);
-            }
-        } catch (error) {
-            alert('Upload error: ' + error.message);
-        }
-
-        this.dom.fileInput.value = '';
+            const data = await resp.json();
+            if (data.success) this.addAttachment(data.file);
+            else this.notify(data.message || 'Upload failed.', 'error');
+        } catch { this.notify('Upload error.', 'error'); }
+        if (this.dom.fileInput) this.dom.fileInput.value = '';
     }
 
     addAttachment(file) {
-        if (!this.attachments) this.attachments = [];
         this.attachments.push(file);
-
         const item = document.createElement('div');
         item.className = 'attachment-item';
-        item.innerHTML = `
-            <i class="fas fa-file"></i>
-            <span>${file.name}</span>
-            <button class="attachment-remove" onclick="nexai.removeAttachment('${file.name}')">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-
-        this.dom.attachmentList.appendChild(item);
-        this.dom.attachmentPreview.style.display = 'block';
+        item.innerHTML = `<i class="fas fa-file"></i><span>${this.escapeHtml(file.name)}</span>`;
+        const rm = document.createElement('button');
+        rm.className = 'attachment-remove';
+        rm.innerHTML = '<i class="fas fa-times"></i>';
+        rm.addEventListener('click', () => { this.removeAttachment(file.name); item.remove(); });
+        item.appendChild(rm);
+        this.dom.attachmentList?.appendChild(item);
+        if (this.dom.attachmentPreview) this.dom.attachmentPreview.style.display = 'block';
     }
 
     removeAttachment(name) {
         this.attachments = this.attachments.filter(a => a.name !== name);
-        if (this.attachments.length === 0) {
+        if (!this.attachments.length && this.dom.attachmentPreview) {
             this.dom.attachmentPreview.style.display = 'none';
-        } else {
-            const items = document.querySelectorAll('.attachment-item');
-            items.forEach(item => {
-                if (item.textContent.includes(name)) item.remove();
-            });
         }
     }
 
-    // ===========================
-    // VOICE INPUT/OUTPUT
-    // ===========================
+    // ─── VOICE ────────────────────────────────────────────────────────────────
 
     setupSpeechRecognition() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            this.dom.voiceBtn.style.display = 'none';
-            return;
-        }
-
-        this.recognition = new SpeechRecognition();
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { if (this.dom.voiceBtn) this.dom.voiceBtn.style.display = 'none'; return; }
+        this.recognition = new SR();
         this.recognition.continuous = false;
         this.recognition.interimResults = true;
         this.recognition.lang = 'en-US';
-
-        this.recognition.onstart = () => {
-            this.isListening = true;
-            this.dom.voiceBtn.classList.add('listening');
-        };
-
-        this.recognition.onend = () => {
-            this.isListening = false;
-            this.dom.voiceBtn.classList.remove('listening');
-        };
-
-        this.recognition.onresult = (event) => {
-            let transcript = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                transcript += event.results[i][0].transcript;
-            }
-            if (event.results[event.results.length - 1].isFinal) {
-                this.dom.messageInput.value = transcript;
+        this.recognition.onstart  = () => { this.isListening = true;  this.dom.voiceBtn?.classList.add('listening'); };
+        this.recognition.onend    = () => { this.isListening = false; this.dom.voiceBtn?.classList.remove('listening'); };
+        this.recognition.onerror  = ev => console.warn('Speech error:', ev.error);
+        this.recognition.onresult = ev => {
+            let t = '';
+            for (let i = ev.resultIndex; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+            if (ev.results[ev.results.length - 1].isFinal) {
+                if (this.dom.messageInput) this.dom.messageInput.value = t;
                 this.sendMessage();
             }
-        };
-
-        this.recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
         };
     }
 
     toggleVoiceInput() {
         if (!this.recognition) return;
-
-        if (this.isListening) {
-            this.recognition.stop();
-        } else {
-            this.recognition.start();
-        }
+        this.isListening ? this.recognition.stop() : this.recognition.start();
     }
 
     speak(text) {
         if (!('speechSynthesis' in window)) return;
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = this.settings.voiceSpeed;
-        utterance.pitch = this.settings.voicePitch;
-        speechSynthesis.speak(utterance);
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate  = this.settings.voiceSpeed;
+        u.pitch = this.settings.voicePitch;
+        speechSynthesis.speak(u);
     }
 
-    // ===========================
-    // SETTINGS & PROFILE
-    // ===========================
+    // ─── SETTINGS / PROFILE ───────────────────────────────────────────────────
 
     openSettingsModal() {
         this.showModal('settingsModal');
-
-        // Set current theme
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.dataset.theme === this.settings.theme) {
-                btn.classList.add('active');
-            }
+        document.querySelectorAll('.theme-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.theme === this.settings.theme);
         });
-
-        // Set voice settings
-        document.getElementById('voiceSpeed').value = this.settings.voiceSpeed;
-        document.getElementById('voiceSpeedValue').textContent = this.settings.voiceSpeed + 'x';
-        document.getElementById('voicePitch').value = this.settings.voicePitch;
-        document.getElementById('voicePitchValue').textContent = this.settings.voicePitch + 'x';
-        document.getElementById('voiceEnabled').checked = this.settings.voiceEnabled;
+        const vs = document.getElementById('voiceSpeed');
+        const vp = document.getElementById('voicePitch');
+        const ve = document.getElementById('voiceEnabled');
+        if (vs) { vs.value = this.settings.voiceSpeed; const lbl = document.getElementById('voiceSpeedValue'); if (lbl) lbl.textContent = vs.value + 'x'; }
+        if (vp) { vp.value = this.settings.voicePitch; const lbl = document.getElementById('voicePitchValue'); if (lbl) lbl.textContent = vp.value + 'x'; }
+        if (ve) ve.checked = this.settings.voiceEnabled;
     }
 
-    openProfileModal() {
-        this.showModal('profileModal');
-        this.updateUserUI();
-    }
+    openProfileModal() { this.showModal('profileModal'); this.updateUserUI(); }
 
     async uploadAvatar(e) {
-        const file = e.target.files[0];
+        const file = e.target.files?.[0];
         if (!file) return;
-
         const formData = new FormData();
         formData.append('avatar', file);
-
         try {
-            const response = await fetch(`${this.API_URL}/user/avatar`, {
-                method: 'POST',
+            const resp = await fetch(`${this.API_URL}/user/avatar`, {
+                method:  'POST',
                 headers: { 'Authorization': `Bearer ${this.token}` },
-                body: formData
+                body:    formData
             });
-
-            const data = await response.json();
-            if (data.success) {
-                this.user.avatar = data.avatar;
-                this.updateUserUI();
-            }
-        } catch (error) {
-            alert('Upload error: ' + error.message);
-        }
-
-        document.getElementById('avatarInput').value = '';
+            const data = await resp.json();
+            if (data.success) { this.user.avatar = data.avatar; this.updateUserUI(); this.notify('Avatar updated!', 'success'); }
+            else this.notify(data.message || 'Upload failed.', 'error');
+        } catch { this.notify('Avatar upload error.', 'error'); }
+        const ai = document.getElementById('avatarInput');
+        if (ai) ai.value = '';
     }
 
     async deleteAvatar() {
         try {
-            const response = await fetch(`${this.API_URL}/user/avatar`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                this.user.avatar = null;
-                this.updateUserUI();
-            }
-        } catch (error) {
-            alert('Delete error: ' + error.message);
-        }
+            const data = await this._delete('/user/avatar');
+            if (data.success) { if (this.user) this.user.avatar = null; this.updateUserUI(); this.notify('Avatar removed.', 'success'); }
+        } catch { this.notify('Could not remove avatar.', 'error'); }
     }
 
     async saveSettings() {
         try {
-            await fetch(`${this.API_URL}/settings`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify({
-                    theme: this.settings.theme,
-                    voice_speed: this.settings.voiceSpeed,
-                    voice_pitch: this.settings.voicePitch,
-                    voice_enabled: this.settings.voiceEnabled
-                })
+            await this._put('/settings', {
+                theme:        this.settings.theme,
+                voiceSpeed:   this.settings.voiceSpeed,
+                voicePitch:   this.settings.voicePitch,
+                voiceEnabled: this.settings.voiceEnabled
             });
-        } catch (error) {
-            console.error('Save settings error:', error);
-        }
+        } catch {}
     }
 
     async loadSettings() {
         try {
-            const response = await fetch(`${this.API_URL}/settings`, {
-                headers: { 'Authorization': `Bearer ${this.token}` }
-            });
-
-            const data = await response.json();
+            const data = await this._get('/settings');
             if (data.success) {
                 this.settings = {
-                    theme: data.settings.theme || 'dark',
-                    voiceSpeed: data.settings.voice_speed || 1.0,
-                    voicePitch: data.settings.voice_pitch || 1.0,
-                    voiceEnabled: data.settings.voice_enabled !== false
+                    theme:        data.settings.theme || 'dark',
+                    voiceSpeed:   data.settings.voiceSpeed || 1.0,
+                    voicePitch:   data.settings.voicePitch || 1.0,
+                    voiceEnabled: data.settings.voiceEnabled !== false
                 };
                 this.applyTheme(this.settings.theme);
             }
-        } catch (error) {
-            console.error('Load settings error:', error);
-        }
+        } catch {}
     }
 
     changeTheme(theme) {
@@ -1025,57 +685,61 @@ class NEXAI {
     }
 
     applyTheme(theme) {
-        document.body.classList.remove('theme-dark', 'theme-light', 'theme-red', 'theme-blue', 'theme-green', 'theme-purple');
-        document.body.classList.add(`theme-${theme}`);
+        document.body.className = document.body.className
+            .replace(/theme-\S+/g, '').trim() + ` theme-${theme}`;
     }
 
-    // ===========================
-    // MODAL MANAGEMENT
-    // ===========================
+    // ─── MODALS ───────────────────────────────────────────────────────────────
 
-    showModal(id) {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.remove('hidden');
+    showModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
+    closeModal(id) { document.getElementById(id)?.classList.add('hidden');    }
+    toggleUserMenu() { this.dom.userMenu?.classList.toggle('hidden'); }
+    closeUserMenu()  { this.dom.userMenu?.classList.add('hidden'); }
+
+    // ─── HTTP HELPERS ─────────────────────────────────────────────────────────
+
+    async _request(method, path, body) {
+        const opts = {
+            method,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` }
+        };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        const resp = await fetch(`${this.API_URL}${path}`, opts);
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            const err  = new Error(data.message || `HTTP ${resp.status}`);
+            err.needsVerification = data.needsVerification || false;
+            throw err;
         }
+        return data;
     }
 
-    closeModal(id) {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.add('hidden');
-        }
-    }
+    _get(path)        { return this._request('GET',    path); }
+    _post(path, body) { return this._request('POST',   path, body); }
+    _put(path, body)  { return this._request('PUT',    path, body); }
+    _delete(path)     { return this._request('DELETE', path); }
 
-    toggleUserMenu() {
-        this.dom.userMenu.classList.toggle('hidden');
-    }
+    // ─── UTILS ────────────────────────────────────────────────────────────────
 
-    closeUserMenu() {
-        this.dom.userMenu.classList.add('hidden');
-    }
-
-    // ===========================
-    // UTILITY FUNCTIONS
-    // ===========================
-
-    getInitial(str) {
-        return str ? str.charAt(0).toUpperCase() : '?';
-    }
+    getInitial(str) { return str?.charAt(0).toUpperCase() || '?'; }
 
     escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, m => map[m]);
+        return String(text).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[c]));
+    }
+
+    _setLoading(btn, loading, loadingText = 'Loading...') {
+        if (!btn) return;
+        if (loading) {
+            btn._origHTML = btn.innerHTML;
+            btn.disabled  = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${loadingText}`;
+        } else {
+            btn.disabled  = false;
+            btn.innerHTML = btn._origHTML || btn.innerHTML;
+        }
     }
 }
 
-// Initialize NEXAI on page load
-document.addEventListener('DOMContentLoaded', () => {
-    window.nexai = new NEXAI();
-});
+document.addEventListener('DOMContentLoaded', () => { window.nexai = new NEXAI(); });
