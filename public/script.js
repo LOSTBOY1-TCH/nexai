@@ -209,11 +209,23 @@ class NEXAI {
         const password = document.getElementById('loginPassword')?.value || '';
         const btn      = e.target.querySelector('button[type="submit"]');
 
-        if (!email || !password) { this.notify('Email and password are required.', 'error'); return; }
+        // Validate email format
+        if (!email || !password) { 
+            this.notify('Email and password are required.', 'error'); 
+            return; 
+        }
+        if (!this._isValidEmail(email)) {
+            this.notify('Please enter a valid email address.', 'error');
+            return;
+        }
 
         this._setLoading(btn, true, 'Signing In...');
         try {
             const data = await this._post('/auth/login', { email, password });
+            if (!data.token || !data.userId) {
+                this.notify('Invalid login response from server.', 'error');
+                return;
+            }
             this.token  = data.token;
             this.userId = data.userId;
             localStorage.setItem('nexai_token',  this.token);
@@ -245,10 +257,24 @@ class NEXAI {
         const btn             = e.target.querySelector('button[type="submit"]');
 
         if (!username || !email || !password || !passwordConfirm) {
-            this.notify('All fields are required.', 'error'); return;
+            this.notify('All fields are required.', 'error'); 
+            return;
+        }
+        if (username.length < 3) {
+            this.notify('Username must be at least 3 characters.', 'error');
+            return;
+        }
+        if (!this._isValidEmail(email)) {
+            this.notify('Please enter a valid email address.', 'error');
+            return;
+        }
+        if (password.length < 6) {
+            this.notify('Password must be at least 6 characters.', 'error');
+            return;
         }
         if (password !== passwordConfirm) {
-            this.notify('Passwords do not match.', 'error'); return;
+            this.notify('Passwords do not match.', 'error'); 
+            return;
         }
 
         this._setLoading(btn, true, 'Creating Account...');
@@ -270,12 +296,27 @@ class NEXAI {
         const email = localStorage.getItem('nexai_email');
         const btn   = e.target.querySelector('button[type="submit"]');
 
-        if (!email) { this.notify('Session expired. Please sign up again.', 'error'); this.switchAuthForm('signup'); return; }
-        if (code.length !== 6) { this.notify('Please enter the 6-digit code.', 'error'); return; }
+        if (!email) { 
+            this.notify('Session expired. Please sign up again.', 'error'); 
+            this.switchAuthForm('signup'); 
+            return; 
+        }
+        if (!code || code.length !== 6) { 
+            this.notify('Please enter a valid 6-digit code.', 'error'); 
+            return; 
+        }
+        if (!/^\d+$/.test(code)) {
+            this.notify('Code must contain only numbers.', 'error');
+            return;
+        }
 
         this._setLoading(btn, true, 'Verifying...');
         try {
             const data = await this._post('/auth/verify-otp', { email, code });
+            if (!data.token || !data.userId) {
+                this.notify('Invalid verification response from server.', 'error');
+                return;
+            }
             this.token  = data.token;
             this.userId = data.userId;
             localStorage.setItem('nexai_token',  this.token);
@@ -727,6 +768,12 @@ class NEXAI {
         return String(text).replace(/[&<>"']/g, c => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
         }[c]));
+    }
+
+    _isValidEmail(email) {
+        // Simple email validation regex
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
     }
 
     _setLoading(btn, loading, loadingText = 'Loading...') {
