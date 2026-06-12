@@ -1,205 +1,92 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
-// Database connection
 async function connectDatabase() {
-    try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/nexai_db';
-        
-        await mongoose.connect(mongoUri, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
-        
-        console.log('✓ Connected to MongoDB successfully');
-    } catch (error) {
-        console.error('MongoDB connection error:', error.message);
-        process.exit(1);
-    }
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/nexai_db';
+    await mongoose.connect(mongoUri);
+    console.log('✓ Connected to MongoDB successfully');
 }
 
-// Define Schemas
+// ── Schemas ──────────────────────────────────────────────────────────────────
+
 const userSchema = new mongoose.Schema({
-    username: {
-        type: String,
-        required: true,
-        unique: true,
-        trim: true
-    },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true
-    },
-    password: {
-        type: String,
-        required: true
-    },
-    avatar: String,
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    }
+    username:   { type: String, required: true, unique: true, trim: true, index: true },
+    email:      { type: String, required: true, unique: true, lowercase: true, index: true },
+    password:   { type: String, required: true },
+    avatar:     { type: String, default: null },
+    isVerified: { type: Boolean, default: false },
+    createdAt:  { type: Date, default: Date.now },
+    updatedAt:  { type: Date, default: Date.now }
 });
 
 const sessionSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    token: {
-        type: String,
-        required: true
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    expiresAt: Date
+    userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    token:     { type: String, required: true, index: true },
+    createdAt: { type: Date, default: Date.now },
+    expiresAt: { type: Date, required: true, index: true }
 });
+// TTL index: MongoDB auto-deletes expired sessions
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const otpCodeSchema = new mongoose.Schema({
-    email: {
-        type: String,
-        required: true
-    },
-    code: {
-        type: String,
-        required: true
-    },
-    expiresAt: Date,
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    used: {
-        type: Boolean,
-        default: false
-    }
+    email:     { type: String, required: true, index: true },
+    code:      { type: String, required: true },
+    expiresAt: { type: Date, required: true, index: true },
+    createdAt: { type: Date, default: Date.now },
+    used:      { type: Boolean, default: false }
 });
+// TTL: auto-delete stale OTPs 1 hour after expiry
+otpCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 3600 });
 
 const passwordResetSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    token: {
-        type: String,
-        required: true
-    },
-    expiresAt: Date,
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
+    userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    token:     { type: String, required: true, unique: true },
+    expiresAt: { type: Date, required: true },
+    createdAt: { type: Date, default: Date.now }
 });
+passwordResetSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const settingsSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        unique: true
-    },
-    theme: {
-        type: String,
-        default: 'dark'
-    },
-    accentColor: {
-        type: String,
-        default: 'ff1744'
-    },
-    voiceEnabled: {
-        type: Boolean,
-        default: true
-    },
-    voiceSpeed: {
-        type: Number,
-        default: 1.0
-    },
-    voicePitch: {
-        type: Number,
-        default: 1.0
-    },
-    notifications: {
-        type: Boolean,
-        default: true
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    }
+    userId:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+    theme:        { type: String, default: 'dark' },
+    accentColor:  { type: String, default: 'ff1744' },
+    voiceEnabled: { type: Boolean, default: true },
+    voiceSpeed:   { type: Number, default: 1.0 },
+    voicePitch:   { type: Number, default: 1.0 },
+    notifications:{ type: Boolean, default: true },
+    updatedAt:    { type: Date, default: Date.now }
 });
 
 const chatHistorySchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    chatId: {
-        type: String,
-        required: true
-    },
-    chatTitle: String,
-    messages: {
-        type: mongoose.Schema.Types.Mixed,
-        default: []
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    }
+    userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    chatId:    { type: String, required: true },
+    chatTitle: { type: String, default: 'New Chat' },
+    messages:  { type: mongoose.Schema.Types.Mixed, default: [] },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
 });
+// Compound unique index prevents duplicate chatIds per user
+chatHistorySchema.index({ userId: 1, chatId: 1 }, { unique: true });
 
-// Create indexes for better query performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-sessionSchema.index({ userId: 1 });
-otpCodeSchema.index({ email: 1 });
-settingsSchema.index({ userId: 1 });
-chatHistorySchema.index({ userId: 1, chatId: 1 });
+// ── Models ────────────────────────────────────────────────────────────────────
 
-// Create Models
-const User = mongoose.model('User', userSchema);
-const Session = mongoose.model('Session', sessionSchema);
-const OtpCode = mongoose.model('OtpCode', otpCodeSchema);
+const User          = mongoose.model('User', userSchema);
+const Session       = mongoose.model('Session', sessionSchema);
+const OtpCode       = mongoose.model('OtpCode', otpCodeSchema);
 const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
-const Settings = mongoose.model('Settings', settingsSchema);
-const ChatHistory = mongoose.model('ChatHistory', chatHistorySchema);
+const Settings      = mongoose.model('Settings', settingsSchema);
+const ChatHistory   = mongoose.model('ChatHistory', chatHistorySchema);
 
-// Initialize Database
 async function initializeDatabase() {
-    try {
-        // Models are auto-created by Mongoose
-        console.log('✓ Database models initialized successfully');
-    } catch (error) {
-        console.error('Database initialization error:', error);
-    }
+    // Ensure indexes are created
+    await Promise.all([
+        User.createIndexes(),
+        Session.createIndexes(),
+        OtpCode.createIndexes(),
+        Settings.createIndexes(),
+        ChatHistory.createIndexes()
+    ]);
+    console.log('✓ Database indexes initialized');
 }
 
-module.exports = {
-    connectDatabase,
-    initializeDatabase,
-    User,
-    Session,
-    OtpCode,
-    PasswordReset,
-    Settings,
-    ChatHistory
-};
+module.exports = { connectDatabase, initializeDatabase, User, Session, OtpCode, PasswordReset, Settings, ChatHistory };
