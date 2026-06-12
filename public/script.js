@@ -252,8 +252,12 @@ class NEXAI {
                 localStorage.setItem('nexai_email', email);
                 this.notify('Please verify your email first.', 'warning');
                 this.switchAuthForm('verification');
+            } else if (err.isNetworkError) {
+                this.notify(`${err.message} Trying to connect to: ${this.API_URL}`, 'error');
+            } else if (err.status === 401) {
+                this.notify('Invalid email or password. Please try again.', 'error');
             } else {
-                this.notify(err.message || 'Login failed.', 'error');
+                this.notify(err.message || 'Login failed. Please try again.', 'error');
             }
         }
         this._setLoading(btn, false);
@@ -296,7 +300,13 @@ class NEXAI {
             this.notify('Account created! Check your email for the verification code.', 'success', 6000);
             this.switchAuthForm('verification');
         } catch (err) {
-            this.notify(err.message || 'Signup failed.', 'error');
+            if (err.isNetworkError) {
+                this.notify(`${err.message} Trying to connect to: ${this.API_URL}`, 'error');
+            } else if (err.status === 409) {
+                this.notify('Email or username already exists. Try logging in or use a different email.', 'error');
+            } else {
+                this.notify(err.message || 'Signup failed. Please try again.', 'error');
+            }
         }
         this._setLoading(btn, false);
     }
@@ -339,7 +349,13 @@ class NEXAI {
             this.loadUserProfile();
             this.createNewChat();
         } catch (err) {
-            this.notify(err.message || 'Verification failed.', 'error');
+            if (err.isNetworkError) {
+                this.notify(`${err.message} Trying to connect to: ${this.API_URL}`, 'error');
+            } else if (err.status === 401) {
+                this.notify('Invalid or expired verification code. Please try again or request a new code.', 'error');
+            } else {
+                this.notify(err.message || 'Verification failed. Please try again.', 'error');
+            }
         }
         this._setLoading(btn, false);
     }
@@ -756,14 +772,28 @@ class NEXAI {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}` }
         };
         if (body !== undefined) opts.body = JSON.stringify(body);
-        const resp = await fetch(`${this.API_URL}${path}`, opts);
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) {
-            const err  = new Error(data.message || `HTTP ${resp.status}`);
-            err.needsVerification = data.needsVerification || false;
+        
+        try {
+            const url = `${this.API_URL}${path}`;
+            const resp = await fetch(url, opts);
+            const data = await resp.json().catch(() => ({}));
+            
+            if (!resp.ok) {
+                const err = new Error(data.message || `HTTP ${resp.status}`);
+                err.needsVerification = data.needsVerification || false;
+                err.status = resp.status;
+                throw err;
+            }
+            return data;
+        } catch (err) {
+            // Network error or connection refused
+            if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+                const error = new Error(`Cannot connect to API server. Please check your connection and try again.`);
+                error.isNetworkError = true;
+                throw error;
+            }
             throw err;
         }
-        return data;
     }
 
     _get(path)        { return this._request('GET',    path); }
