@@ -1,11 +1,6 @@
-// ===========================
-// NEXAI – Frontend Application (fixed)
-// ===========================
-
 class NEXAI {
     constructor() {
-        // Determine API URL based on environment
-        // Priority: window.NEXAI_API_URL > localhost > same origin
+   
         if (window.NEXAI_API_URL) {
             this.API_URL = window.NEXAI_API_URL;
         } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
