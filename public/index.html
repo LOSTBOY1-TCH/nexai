@@ -18,18 +18,18 @@
         <!-- Login Form -->
         <div class="auth-form login-form active" id="loginForm">
             <div class="auth-header">
-                <img src="image.png" alt="NEXAI Logo" class="auth-logo">
+                <img src="image.png" alt="NEXAI Logo" class="auth-logo" loading="lazy">
                 <h1>NEXAI</h1>
                 <p>Powered by Lostboy Tech</p>
             </div>
-            <form id="loginFormElement">
+            <form id="loginFormElement" novalidate>
                 <div class="form-group">
                     <label for="loginEmail">Email Address</label>
-                    <input type="email" id="loginEmail" placeholder="your@email.com" required>
+                    <input type="email" id="loginEmail" placeholder="your@email.com" required aria-required="true" autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required aria-required="true" autocomplete="current-password">
                 </div>
                 <button type="submit" class="auth-btn">
                     <i class="fas fa-sign-in-alt"></i> Sign In
@@ -43,26 +43,26 @@
         <!-- Signup Form -->
         <div class="auth-form signup-form" id="signupForm">
             <div class="auth-header">
-                <img src="image.png" alt="NEXAI Logo" class="auth-logo">
+                <img src="image.png" alt="NEXAI Logo" class="auth-logo" loading="lazy">
                 <h1>NEXAI</h1>
                 <p>Join Lostboy Tech Community</p>
             </div>
-            <form id="signupFormElement">
+            <form id="signupFormElement" novalidate>
                 <div class="form-group">
                     <label for="signupUsername">Username</label>
-                    <input type="text" id="signupUsername" placeholder="Choose a username" required>
+                    <input type="text" id="signupUsername" placeholder="Choose a username" required aria-required="true" autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="signupEmail">Email Address</label>
-                    <input type="email" id="signupEmail" placeholder="your@email.com" required>
+                    <input type="email" id="signupEmail" placeholder="your@email.com" required aria-required="true" autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label for="signupPassword">Password</label>
-                    <input type="password" id="signupPassword" placeholder="Create a strong password" required>
+                    <input type="password" id="signupPassword" placeholder="Create a strong password" required aria-required="true" autocomplete="new-password">
                 </div>
                 <div class="form-group">
                     <label for="signupPasswordConfirm">Confirm Password</label>
-                    <input type="password" id="signupPasswordConfirm" placeholder="Confirm your password" required>
+                    <input type="password" id="signupPasswordConfirm" placeholder="Confirm your password" required aria-required="true" autocomplete="new-password">
                 </div>
                 <button type="submit" class="auth-btn">
                     <i class="fas fa-user-plus"></i> Create Account
@@ -76,14 +76,14 @@
         <!-- OTP Verification Form -->
         <div class="auth-form verification-form" id="verificationForm">
             <div class="auth-header">
-                <img src="image.png" alt="NEXAI Logo" class="auth-logo">
+                <img src="image.png" alt="NEXAI Logo" class="auth-logo" loading="lazy">
                 <h1>Verify Email</h1>
                 <p>Enter the code sent to your email</p>
             </div>
-            <form id="verificationFormElement">
+            <form id="verificationFormElement" novalidate>
                 <div class="form-group">
                     <label for="otpCode">Verification Code</label>
-                    <input type="text" id="otpCode" placeholder="000000" maxlength="6" required>
+                    <input type="text" id="otpCode" placeholder="000000" maxlength="6" required aria-required="true" inputmode="numeric" pattern="[0-9]{6}">
                 </div>
                 <button type="submit" class="auth-btn">
                     <i class="fas fa-check"></i> Verify
@@ -102,13 +102,13 @@
         <aside class="sidebar" id="sidebar">
             <!-- Sidebar Header -->
             <div class="sidebar-header">
-                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar menu">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <div class="logo">
-                    <img src="image.png" alt="NEXAI" class="logo-image">
+                    <img src="image.png" alt="NEXAI Logo" class="logo-image" loading="lazy">
                     <span class="logo-text">NEXAI</span>
                 </div>
             </div>
@@ -161,7 +161,7 @@
             <!-- Header -->
             <header class="chat-header">
                 <div class="header-content">
-                    <img src="image.png" alt="NEXAI" class="header-logo">
+                    <img src="image.png" alt="NEXAI Logo" class="header-logo" loading="lazy">
                     <div class="header-text">
                         <h1 class="chat-title">NEXAI Assistant</h1>
                         <p class="header-subtitle">Powered by Lostboy Tech</p>
@@ -200,10 +200,10 @@
                         id="fileInput"
                         accept=".jpg,.png,.webp,.pdf,.txt,.doc,.docx"
                         class="file-input hidden"
-                        aria-label="Upload file"
+                        aria-label="Upload file attachment"
                     />
-                    <button class="input-btn file-btn" id="fileBtn" title="Upload file">
-                        <i class="fas fa-paperclip"></i>
+                    <button class="input-btn file-btn" id="fileBtn" title="Upload file" aria-label="Attach file">
+                        <i class="fas fa-paperclip" aria-hidden="true"></i>
                     </button>
 
                     <!-- Message Input -->
@@ -213,22 +213,23 @@
                         placeholder="Ask me anything... (Ctrl+Enter to send)"
                         class="message-input"
                         autocomplete="off"
-                        aria-label="Message input"
+                        aria-label="Type your message here"
+                        spellcheck="true"
                     />
 
                     <!-- Voice Input -->
-                    <button class="input-btn voice-btn" id="voiceBtn" title="Voice input">
-                        <i class="fas fa-microphone"></i>
+                    <button class="input-btn voice-btn" id="voiceBtn" title="Voice input" aria-label="Send voice message">
+                        <i class="fas fa-microphone" aria-hidden="true"></i>
                     </button>
 
                     <!-- Stop Button (Hidden) -->
-                    <button class="input-btn stop-btn hidden" id="stopBtn" title="Stop generating">
-                        <i class="fas fa-stop"></i>
+                    <button class="input-btn stop-btn hidden" id="stopBtn" title="Stop generating" aria-label="Stop AI response">
+                        <i class="fas fa-stop" aria-hidden="true"></i>
                     </button>
 
                     <!-- Send Button -->
-                    <button class="input-btn send-btn" id="sendBtn" title="Send message (Ctrl+Enter)">
-                        <i class="fas fa-paper-plane"></i>
+                    <button class="input-btn send-btn" id="sendBtn" title="Send message (Ctrl+Enter)" aria-label="Send message">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
                     </button>
                 </div>
                 <p class="input-hint">Built by Lostboy Tech © 2026 • All Rights Reserved</p>
