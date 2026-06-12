@@ -226,8 +226,13 @@ class NEXAI {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
+        const submitBtn = document.querySelector('#loginFormElement button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
 
         try {
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
             console.log('Attempting login to:', `${this.API_URL}/auth/login`);
             
             const response = await fetch(`${this.API_URL}/auth/login`, {
@@ -236,11 +241,12 @@ class NEXAI {
                 body: JSON.stringify({ email, password })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                throw new Error(data.message || `Server error: ${response.status}`);
             }
 
-            const data = await response.json();
             if (data.success) {
                 this.token = data.token;
                 this.userId = data.userId;
@@ -256,10 +262,13 @@ class NEXAI {
                 this.loadUserProfile();
                 this.loadChats();
             } else {
-                alert(data.message || 'Login failed');
+                throw new Error(data.message || 'Login failed');
             }
         } catch (error) {
             console.error('Login error:', error);
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+            
             if (error.message.includes('Failed to fetch')) {
                 alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/login\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
             } else {
@@ -274,8 +283,13 @@ class NEXAI {
         const email = document.getElementById('signupEmail').value;
         const password = document.getElementById('signupPassword').value;
         const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
+        const submitBtn = document.querySelector('#signupFormElement button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
 
         try {
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
             console.log('Attempting signup to:', `${this.API_URL}/auth/register`);
             
             const response = await fetch(`${this.API_URL}/auth/register`, {
@@ -284,20 +298,26 @@ class NEXAI {
                 body: JSON.stringify({ username, email, password, passwordConfirm })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                throw new Error(data.message || `Server error: ${response.status}`);
             }
 
-            const data = await response.json();
             if (data.success) {
                 localStorage.setItem('nexai_email', email);
                 alert('✅ Signup successful! Check your email for verification code.');
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
                 this.switchAuthForm('verification');
             } else {
-                alert(data.message || 'Signup failed');
+                throw new Error(data.message || 'Signup failed');
             }
         } catch (error) {
             console.error('Signup error:', error);
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+            
             if (error.message.includes('Failed to fetch')) {
                 alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/register\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
             } else {
@@ -310,8 +330,13 @@ class NEXAI {
         e.preventDefault();
         const code = document.getElementById('otpCode').value;
         const email = localStorage.getItem('nexai_email');
+        const submitBtn = document.querySelector('#verificationFormElement button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
 
         try {
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
             console.log('Verifying OTP for:', email);
             
             const response = await fetch(`${this.API_URL}/auth/verify-otp`, {
@@ -320,11 +345,12 @@ class NEXAI {
                 body: JSON.stringify({ email, code })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                throw new Error(data.message || `Server error: ${response.status}`);
             }
 
-            const data = await response.json();
             if (data.success) {
                 this.token = data.token;
                 this.userId = data.userId;
@@ -336,10 +362,13 @@ class NEXAI {
                 this.loadUserProfile();
                 this.createNewChat();
             } else {
-                alert(data.message || 'Verification failed');
+                throw new Error(data.message || 'Verification failed');
             }
         } catch (error) {
             console.error('Verification error:', error);
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
+            
             if (error.message.includes('Failed to fetch')) {
                 alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/verify-otp\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
             } else {
