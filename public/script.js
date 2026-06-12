@@ -224,30 +224,64 @@ class NEXAI {
 
     async handleLogin(e) {
         e.preventDefault();
-        const email = document.getElementById('loginEmail').value;
+        
+        // Get form values and trim whitespace
+        const email = document.getElementById('loginEmail').value.trim().toLowerCase();
         const password = document.getElementById('loginPassword').value;
         const submitBtn = document.querySelector('#loginFormElement button[type="submit"]');
         const originalBtnText = submitBtn.innerHTML;
 
         try {
-            // Show loading state
+            // ===== CLIENT-SIDE VALIDATION =====
+            if (!email || !password) {
+                alert('❌ Email and password are required!');
+                return;
+            }
+
+            if (!email.includes('@') || !email.includes('.')) {
+                alert('❌ Please enter a valid email address');
+                return;
+            }
+
+            if (password.length < 1) {
+                alert('❌ Password is required!');
+                return;
+            }
+
+            // ===== DISABLE BUTTON & SHOW LOADING =====
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
             console.log('Attempting login to:', `${this.API_URL}/auth/login`);
+            console.log('Data:', { email });
             
+            // ===== SEND TO SERVER =====
             const response = await fetch(`${this.API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || `Server error: ${response.status}`);
+            // ===== PARSE RESPONSE =====
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.error('Failed to parse response:', parseError);
+                throw new Error('Server returned invalid data. Check server logs.');
             }
 
+            console.log('Server response:', { status: response.status, data });
+
+            // ===== CHECK RESPONSE STATUS =====
+            if (!response.ok) {
+                // Server returned an error
+                const errorMsg = data.message || `Server error: ${response.status}`;
+                throw new Error(errorMsg);
+            }
+
+            // ===== SUCCESS =====
             if (data.success) {
+                console.log('Login successful!');
                 this.token = data.token;
                 this.userId = data.userId;
                 localStorage.setItem('nexai_token', this.token);
@@ -258,70 +292,142 @@ class NEXAI {
                     email: data.email,
                     avatar: data.avatar
                 };
+
+                // Clear form
+                document.getElementById('loginEmail').value = '';
+                document.getElementById('loginPassword').value = '';
+                
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
+                
                 this.showChatInterface();
                 this.loadUserProfile();
                 this.loadChats();
             } else {
-                throw new Error(data.message || 'Login failed');
+                // Success is false but no error status
+                throw new Error(data.message || 'Login failed for unknown reason');
             }
+
         } catch (error) {
             console.error('Login error:', error);
+            
+            // ===== RE-ENABLE BUTTON =====
             submitBtn.innerHTML = originalBtnText;
             submitBtn.disabled = false;
             
+            // ===== SHOW ERROR MESSAGE =====
             if (error.message.includes('Failed to fetch')) {
-                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/login\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
+                alert(`❌ Cannot connect to server.\n\nServer: ${this.API_URL}/auth/login\n\nMake sure:\n1. Server is running\n2. Network connection is active\n\nError: ${error.message}`);
             } else {
-                alert('❌ Login error: ' + error.message);
+                // Show specific server error
+                alert(`❌ Login failed!\n\n${error.message}`);
             }
         }
     }
 
     async handleSignup(e) {
         e.preventDefault();
-        const username = document.getElementById('signupUsername').value;
-        const email = document.getElementById('signupEmail').value;
+        
+        // Get form values and trim whitespace
+        const username = document.getElementById('signupUsername').value.trim();
+        const email = document.getElementById('signupEmail').value.trim().toLowerCase();
         const password = document.getElementById('signupPassword').value;
         const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
         const submitBtn = document.querySelector('#signupFormElement button[type="submit"]');
         const originalBtnText = submitBtn.innerHTML;
 
         try {
-            // Show loading state
+            // ===== CLIENT-SIDE VALIDATION =====
+            if (!username || !email || !password || !passwordConfirm) {
+                alert('❌ All fields are required!');
+                return;
+            }
+
+            if (username.length < 3) {
+                alert('❌ Username must be at least 3 characters long');
+                return;
+            }
+
+            if (!email.includes('@') || !email.includes('.')) {
+                alert('❌ Please enter a valid email address');
+                return;
+            }
+
+            if (password.length < 6) {
+                alert('❌ Password must be at least 6 characters long');
+                return;
+            }
+
+            if (password !== passwordConfirm) {
+                alert('❌ Passwords do not match!');
+                return;
+            }
+
+            // ===== DISABLE BUTTON & SHOW LOADING =====
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
             console.log('Attempting signup to:', `${this.API_URL}/auth/register`);
+            console.log('Data:', { username, email });
             
+            // ===== SEND TO SERVER =====
             const response = await fetch(`${this.API_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, email, password, passwordConfirm })
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || `Server error: ${response.status}`);
+            // ===== PARSE RESPONSE =====
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.error('Failed to parse response:', parseError);
+                throw new Error('Server returned invalid data. Check server logs.');
             }
 
+            console.log('Server response:', { status: response.status, data });
+
+            // ===== CHECK RESPONSE STATUS =====
+            if (!response.ok) {
+                // Server returned an error
+                const errorMsg = data.message || `Server error: ${response.status}`;
+                throw new Error(errorMsg);
+            }
+
+            // ===== SUCCESS =====
             if (data.success) {
+                console.log('Signup successful!');
                 localStorage.setItem('nexai_email', email);
-                alert('✅ Signup successful! Check your email for verification code.');
+                
+                // Clear form
+                document.getElementById('signupUsername').value = '';
+                document.getElementById('signupEmail').value = '';
+                document.getElementById('signupPassword').value = '';
+                document.getElementById('signupPasswordConfirm').value = '';
+                
                 submitBtn.innerHTML = originalBtnText;
                 submitBtn.disabled = false;
+                
+                alert('✅ Signup successful!\n\nCheck your email for verification code.');
                 this.switchAuthForm('verification');
             } else {
-                throw new Error(data.message || 'Signup failed');
+                // Success is false but no error status
+                throw new Error(data.message || 'Signup failed for unknown reason');
             }
+
         } catch (error) {
             console.error('Signup error:', error);
+            
+            // ===== RE-ENABLE BUTTON =====
             submitBtn.innerHTML = originalBtnText;
             submitBtn.disabled = false;
             
+            // ===== SHOW ERROR MESSAGE =====
             if (error.message.includes('Failed to fetch')) {
-                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/register\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
+                alert(`❌ Cannot connect to server.\n\nServer: ${this.API_URL}/auth/register\n\nMake sure:\n1. Server is running\n2. Network connection is active\n\nError: ${error.message}`);
             } else {
-                alert('❌ Signup error: ' + error.message);
+                // Show specific server error
+                alert(`❌ Signup failed!\n\n${error.message}`);
             }
         }
     }
