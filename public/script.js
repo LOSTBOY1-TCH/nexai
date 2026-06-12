@@ -5,7 +5,8 @@
 
 class NEXAI {
     constructor() {
-        this.API_URL = 'http://localhost:3000/api';
+        // Auto-detect API URL from current location (works on any port)
+        this.API_URL = `${window.location.origin}/api`;
         this.token = localStorage.getItem('nexai_token');
         this.userId = localStorage.getItem('nexai_userId');
         this.user = null;
@@ -227,11 +228,17 @@ class NEXAI {
         const password = document.getElementById('loginPassword').value;
 
         try {
+            console.log('Attempting login to:', `${this.API_URL}/auth/login`);
+            
             const response = await fetch(`${this.API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
 
             const data = await response.json();
             if (data.success) {
@@ -252,7 +259,12 @@ class NEXAI {
                 alert(data.message || 'Login failed');
             }
         } catch (error) {
-            alert('Login error: ' + error.message);
+            console.error('Login error:', error);
+            if (error.message.includes('Failed to fetch')) {
+                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/login\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
+            } else {
+                alert('❌ Login error: ' + error.message);
+            }
         }
     }
 
@@ -264,21 +276,33 @@ class NEXAI {
         const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
 
         try {
+            console.log('Attempting signup to:', `${this.API_URL}/auth/register`);
+            
             const response = await fetch(`${this.API_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, email, password, passwordConfirm })
             });
 
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
+
             const data = await response.json();
             if (data.success) {
                 localStorage.setItem('nexai_email', email);
+                alert('✅ Signup successful! Check your email for verification code.');
                 this.switchAuthForm('verification');
             } else {
                 alert(data.message || 'Signup failed');
             }
         } catch (error) {
-            alert('Signup error: ' + error.message);
+            console.error('Signup error:', error);
+            if (error.message.includes('Failed to fetch')) {
+                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/register\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
+            } else {
+                alert('❌ Signup error: ' + error.message);
+            }
         }
     }
 
@@ -288,11 +312,17 @@ class NEXAI {
         const email = localStorage.getItem('nexai_email');
 
         try {
+            console.log('Verifying OTP for:', email);
+            
             const response = await fetch(`${this.API_URL}/auth/verify-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, code })
             });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
 
             const data = await response.json();
             if (data.success) {
@@ -301,6 +331,7 @@ class NEXAI {
                 localStorage.setItem('nexai_token', this.token);
                 localStorage.setItem('nexai_userId', this.userId);
                 localStorage.removeItem('nexai_email');
+                alert('✅ Email verified successfully!');
                 this.showChatInterface();
                 this.loadUserProfile();
                 this.createNewChat();
@@ -308,7 +339,12 @@ class NEXAI {
                 alert(data.message || 'Verification failed');
             }
         } catch (error) {
-            alert('Verification error: ' + error.message);
+            console.error('Verification error:', error);
+            if (error.message.includes('Failed to fetch')) {
+                alert(`❌ Cannot connect to server.\n\nAttempted to reach: ${this.API_URL}/auth/verify-otp\n\nMake sure:\n1. Server is running\n2. Server is running on the same machine\n3. Network connection is active\n\nError: ${error.message}`);
+            } else {
+                alert('❌ Verification error: ' + error.message);
+            }
         }
     }
 
