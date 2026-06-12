@@ -57,12 +57,12 @@ const settingsSchema = new mongoose.Schema({
     theme:         { type: String, default: 'dark' },
     accentColor:   { type: String, default: 'ff1744' },
     voiceEnabled:  { type: Boolean, default: true },
-    voiceSpeed:    { type: Number, default: 1.0 },
-    voicePitch:    { type: Number, default: 1.0 },
+    voiceSpeed:    { type: Number, default: 1.0, min: 0.5, max: 2.0 },
+    voicePitch:    { type: Number, default: 1.0, min: 0.5, max: 2.0 },
     notifications: { type: Boolean, default: true },
     updatedAt:     { type: Date, default: Date.now }
 });
-settingsSchema.index({ userId: 1 });
+// Only define unique constraint on userId field, no duplicate indexes
 
 const chatHistorySchema = new mongoose.Schema({
     userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -88,17 +88,24 @@ const ChatHistory   = mongoose.model('ChatHistory', chatHistorySchema);
 // ── Initialize ────────────────────────────────────────────────────────────────
 
 async function initializeDatabase() {
-    // Drop the old non-unique compound index on chathistories if it exists,
-    // then let Mongoose recreate it as unique under its new name.
     try {
+        // Drop the old non-unique compound index on chathistories if it exists
         const chatCol = mongoose.connection.collection('chathistories');
         const indexes = await chatCol.indexes();
-        const oldIdx  = indexes.find(
-            i => i.name === 'userId_1_chatId_1' && !i.unique
-        );
-        if (oldIdx) {
-            await chatCol.dropIndex('userId_1_chatId_1');
-            console.log('✓ Dropped old non-unique chathistories index');
+        
+        // Find and drop conflicting indexes
+        for (const idx of indexes) {
+            // Drop old non-unique userId_chatId index if it exists
+            if (idx.name === 'userId_1_chatId_1' && !idx.unique) {
+                try {
+                    await chatCol.dropIndex('userId_1_chatId_1');
+                    console.log('✓ Dropped old non-unique chathistories index');
+                } catch (dropErr) {
+                    if (dropErr.codeName !== 'IndexNotFound') {
+                        console.warn('Error dropping index:', dropErr.message);
+                    }
+                }
+            }
         }
     } catch (e) {
         // Collection may not exist yet on a fresh DB — that's fine
@@ -107,14 +114,23 @@ async function initializeDatabase() {
         }
     }
 
-    await Promise.all([
-        User.createIndexes(),
-        Session.createIndexes(),
-        OtpCode.createIndexes(),
-        Settings.createIndexes(),
-        ChatHistory.createIndexes()
-    ]);
-    console.log('✓ Database indexes initialized');
+    try {
+        await Promise.all([
+            User.createIndexes(),
+            Session.createIndexes(),
+            OtpCode.createIndexes(),
+            Settings.createIndexes(),
+            ChatHistory.createIndexes()
+        ]);
+        console.log('✓ Database indexes initialized successfully');
+    } catch (indexErr) {
+        // Index conflict errors are usually safe to ignore on existing databases
+        if (indexErr.code === 86 || indexErr.codeName === 'IndexKeySpecsConflict') {
+            console.warn('⚠ Index conflict detected (existing DB), proceeding anyway:', indexErr.message);
+        } else {
+            throw indexErr;
+        }
+    }
 }
 
 module.exports = {
