@@ -11,56 +11,14 @@ const PORT = process.env.PORT || 3000;
 // MIDDLEWARE
 // ============================================================================
 
-// CORS Configuration - Allow all origins for development
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests from:
-        // 1. The same server (no origin header)
-        // 2. Localhost and localhost variants
-        // 3. All HTTPS origins (for production)
-        // 4. Render deployment domains
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:3001',
-            process.env.FRONTEND_URL,
-            'https://nexai-f9g9.onrender.com',
-            /\.onrender\.com$/,  // Allow all Render domains
-            /\.vercel\.app$/,    // Allow all Vercel domains
-            /localhost/          // Allow all localhost variants
-        ];
-
-        // If no origin (same-origin requests), always allow
-        if (!origin || origin === undefined) {
-            return callback(null, true);
-        }
-
-        // Check if origin is allowed
-        const isAllowed = allowedOrigins.some(allowed => {
-            if (typeof allowed === 'string') {
-                return origin === allowed;
-            }
-            if (allowed instanceof RegExp) {
-                return allowed.test(origin);
-            }
-            return false;
-        });
-
-        if (isAllowed) {
-            callback(null, true);
-        } else {
-            callback(new Error('CORS not allowed for origin: ' + origin), false);
-        }
-    },
+// CORS Configuration - Allow ALL origins
+app.use(cors({
+    origin: '*',  // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
     optionsSuccessStatus: 200,
-    maxAge: 86400 // 24 hours
-};
-
-app.use(cors(corsOptions));
+    maxAge: 86400
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -193,10 +151,12 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  http://localhost:${PORT}              ║
 ╚════════════════════════════════════════╝
     `);
-    console.log('CORS enabled for:');
-    console.log('  - localhost:3000, localhost:3001');
-    console.log('  - *.onrender.com');
-    console.log('  - *.vercel.app');
+    console.log('✓ CORS enabled for: ALL ORIGINS (*)');
+    console.log('✓ API Endpoints ready:');
+    console.log('  - POST /api/auth/register');
+    console.log('  - POST /api/auth/login');
+    console.log('  - POST /api/auth/verify-otp');
+    console.log('  - GET /api/health');
     console.log('Environment: ' + (process.env.NODE_ENV || 'development'));
     console.log('Waiting for MongoDB connection...');
 });
