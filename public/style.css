@@ -1358,6 +1358,16 @@ body {
    RESPONSIVE DESIGN
    =========================== */
 
+@media (max-width: 1024px) {
+    .chat-layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+}
+
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;
@@ -1423,6 +1433,14 @@ body {
     .theme-selector {
         grid-template-columns: repeat(2, 1fr);
     }
+
+    .chat-header {
+        padding: 16px;
+    }
+
+    .header-content {
+        gap: 10px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1455,6 +1473,31 @@ body {
     .header-logo {
         width: 40px;
         height: 40px;
+    }
+
+    .input-wrapper {
+        padding: 6px;
+        gap: 4px;
+    }
+
+    .input-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+
+    .message {
+        gap: 8px;
+    }
+
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+
+    .message-content-container {
+        max-width: 90vw;
     }
 }
 
